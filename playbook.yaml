@@ -1,0 +1,11 @@
+- name: get hosts facts
+  hosts: all
+  gather_facts: yes
+
+- name: build environment
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: init server environment
+      include_role:
+        name: 'update_{{ ansible_distribution|lower }}_environment'

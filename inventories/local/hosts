@@ -1,0 +1,2 @@
+[ubuntu]
+localhost ansible_connection=local ansible_become_password='{{ become_password }}'
