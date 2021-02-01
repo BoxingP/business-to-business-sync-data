@@ -9,3 +9,6 @@
     - name: init server environment
       include_role:
         name: 'update_{{ ansible_distribution|lower }}_environment'
+    - name: build postgresql
+      include_role:
+        name: 'build_postgresql'
