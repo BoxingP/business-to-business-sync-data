@@ -34,13 +34,119 @@
   become: yes
   become_user: postgres
 
-- name: ensure user has access to the database
-  community.general.postgresql_user:
+- name: create table sku list in db
+  community.general.postgresql_table:
     db: '{{ db_name }}'
+    table: sku_list
+    columns:
+      - sku_id bigserial primary key
+      - sku varchar(255) not null
+      - business_unit varchar(255) not null
+      - is_active boolean
+      - effective_date timestamp
+      - expiration_date timestamp
+      - created_by varchar(255)
+      - created_date timestamp
+      - updated_by varchar(255)
+      - updated_date timestamp
+  become: yes
+  become_user: postgres
+
+- name: create table ship to in db
+  community.general.postgresql_table:
+    db: '{{ db_name }}'
+    table: ship_to
+    columns:
+      - st_id bigserial primary key
+      - st bigint not null
+      - created_by varchar(255)
+      - created_date timestamp
+      - updated_by varchar(255)
+      - updated_date timestamp
+  become: yes
+  become_user: postgres
+
+- name: create table casmart research group in db
+  community.general.postgresql_table:
+    db: '{{ db_name }}'
+    table: casmart_research_group
+    columns:
+      - group_id bigserial primary key
+      - group_name varchar(255) not null
+      - created_by varchar(255)
+      - created_date timestamp
+      - updated_by varchar(255)
+      - updated_date timestamp
+  become: yes
+  become_user: postgres
+
+- name: create table ship to casmart research group in db
+  community.general.postgresql_table:
+    db: '{{ db_name }}'
+    table: ship_to_casmart_research_group
+    columns:
+      - st_id bigint not null references ship_to
+      - group_id bigint not null references casmart_research_group
+      - created_by varchar(255)
+      - created_date timestamp
+      - updated_by varchar(255)
+      - updated_date timestamp
+      - primary key (st_id, group_id)
+  become: yes
+  become_user: postgres
+
+- name: create table list price in db
+  community.general.postgresql_table:
+    db: '{{ db_name }}'
+    table: list_price
+    columns:
+      - list_price_id bigserial primary key
+      - sku_id bigint not null
+      - unit_price numeric not null
+      - effective_date timestamp
+      - expiration_date timestamp
+      - created_by varchar(255)
+      - created_date timestamp
+      - updated_by varchar(255)
+      - updated_date timestamp
+  become: yes
+  become_user: postgres
+
+- name: create table quote price in db
+  community.general.postgresql_table:
+    db: '{{ db_name }}'
+    table: quote_price
+    columns:
+      - quote_price_id bigserial primary key
+      - quote_price numeric not null
+      - quote_type char(1) not null
+      - quote_number bigint not null
+      - min_order_quantity bigint not null
+      - sku_id bigint not null
+      - st_id bigint not null
+      - effective_date timestamp
+      - expiration_date timestamp
+      - created_by varchar(255)
+      - created_date timestamp
+      - updated_by varchar(255)
+      - updated_date timestamp
+  become: yes
+  become_user: postgres
+
+- name: create user
+  community.general.postgresql_user:
     name: '{{ db_user }}'
     password: '{{ db_password }}'
-    priv: ALL
     state: present
+  become: yes
+  become_user: postgres
+
+- name: ensure user has the access
+  community.general.postgresql_privs:
+    db: '{{ db_name }}'
+    role: '{{ db_user }}'
+    objs: ALL_IN_SCHEMA
+    privs: SELECT,INSERT,UPDATE,DELETE
   become: yes
   become_user: postgres
 
