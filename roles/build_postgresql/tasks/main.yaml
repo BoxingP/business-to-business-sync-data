@@ -133,6 +133,14 @@
   become: yes
   become_user: postgres
 
+- name: create views in db
+  community.general.postgresql_query:
+    db: '{{ db_name }}'
+    path_to_script: vars/postgresql/create_views.sql
+    encoding: UTF-8
+  become: yes
+  become_user: postgres
+
 - name: create user
   community.general.postgresql_user:
     name: '{{ db_user }}'
