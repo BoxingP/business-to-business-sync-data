@@ -149,12 +149,34 @@
   become: yes
   become_user: postgres
 
-- name: ensure user has the access
+- name: ensure user has the access, step 1
+  community.general.postgresql_privs:
+    db: '{{ db_name }}'
+    role: '{{ db_user }}'
+    objs: ALL_DEFAULT
+    privs: ALL
+    type: default_privs
+    grant_option: yes
+  become: yes
+  become_user: postgres
+
+- name: ensure user has the access, step 2
   community.general.postgresql_privs:
     db: '{{ db_name }}'
     role: '{{ db_user }}'
     objs: ALL_IN_SCHEMA
-    privs: SELECT,INSERT,UPDATE,DELETE
+    type: table
+    privs: SELECT,INSERT,UPDATE,DELETE,TRIGGER
+  become: yes
+  become_user: postgres
+
+- name: ensure user has the access, step 3
+  community.general.postgresql_privs:
+    db: '{{ db_name }}'
+    role: '{{ db_user }}'
+    objs: ALL_IN_SCHEMA
+    type: sequence
+    privs: SELECT,UPDATE,USAGE
   become: yes
   become_user: postgres
 
