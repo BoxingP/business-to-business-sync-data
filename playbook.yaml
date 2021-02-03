@@ -7,12 +7,25 @@
   gather_facts: no
   vars:
     db_name: demo
+    virtualenv: '{{ hostvars[inventory_hostname].ansible_env.HOME }}/.virtualenvs/business-to-business-sync-data'
   tasks:
     - name: init server environment
       include_role:
         name: 'update_{{ ansible_distribution|lower }}_environment'
+    - name: init python environment
+      include_role:
+        name: create_python_virtualenv
     - name: build postgresql
       include_role:
         name: 'build_postgresql'
     - name: insert test data to postgresql
       include_tasks: tasks/insert_test_data.yaml
+    - name: build oracle environment
+      include_tasks: tasks/build_oracle_environment.yaml
+    - name: fetch data from E1
+      block:
+        - name: run python script
+          include_tasks: tasks/fetch_data_from_e1.yaml
+      environment:
+        PATH: '{{ virtualenv }}/bin:{{ hostvars[inventory_hostname].ansible_env.PATH }}'
+        LD_LIBRARY_PATH: '/opt/oracle/instantclient_21_1'

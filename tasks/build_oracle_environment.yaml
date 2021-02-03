@@ -1,0 +1,41 @@
+- name: 'get absolute path of downloads'
+  changed_when: false
+  command: pwd
+  args:
+    chdir: 'vars/downloads'
+  register: downloads_directory_path_output
+
+- name: set absolute path of python
+  set_fact:
+    abs_downloads_path: '{{ downloads_directory_path_output.stdout }}'
+
+- name: check for oracle client
+  changed_when: false
+  stat:
+    path: '{{ abs_downloads_path }}/instant_client.zip'
+  register: oracle_client_result
+
+- name: download oracle client from remote
+  when: not oracle_client_result.stat.exists
+  get_url:
+    url: https://download.oracle.com/otn_software/linux/instantclient/211000/instantclient-basic-linux.x64-21.1.0.0.0.zip
+    dest: '{{ abs_downloads_path }}/instant_client.zip'
+
+- name: create /opt/oracle directory
+  file:
+    path: /opt/oracle
+    state: directory
+  become: yes
+
+- name: extract oracle client into /opt/oracle
+  unarchive:
+    src: '{{ abs_downloads_path }}/instant_client.zip'
+    dest: /opt/oracle
+  become: yes
+
+- name: install required packages
+  apt:
+    name:
+      - libaio1
+    state: present
+  become: yes

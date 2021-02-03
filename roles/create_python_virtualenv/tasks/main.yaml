@@ -1,0 +1,16 @@
+- name: 'get absolute path of library'
+  changed_when: false
+  command: pwd
+  args:
+    chdir: 'library'
+  register: library_directory_path_output
+
+- name: set absolute path of library
+  set_fact:
+    abs_library_path: '{{ library_directory_path_output.stdout }}'
+
+- name: create the initial virtualenv
+  pip:
+    requirements: '{{ abs_library_path }}/requirements.txt'
+    virtualenv: '{{ virtualenv }}'
+    virtualenv_command: /usr/bin/python3 -m venv

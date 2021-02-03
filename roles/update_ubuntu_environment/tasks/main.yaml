@@ -9,3 +9,10 @@
   apt:
     upgrade: dist
   become: yes
+
+- name: install required packages
+  apt:
+    name:
+      - unzip
+    state: present
+  become: yes

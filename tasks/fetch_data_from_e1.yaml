@@ -1,0 +1,20 @@
+- name: 'get absolute path of python'
+  changed_when: false
+  command: pwd
+  args:
+    chdir: 'vars/python'
+  register: python_directory_path_output
+
+- name: set absolute path of python
+  set_fact:
+    abs_python_path: '{{ python_directory_path_output.stdout }}'
+
+- name: run a python script
+  script: '{{ abs_python_path }}/fetch_data_from_e1.py'
+  args:
+    chdir: '{{ abs_python_path }}'
+    executable: '{{ virtualenv }}/bin/python3'
+  register: fetch_data_from_e1_output
+
+- debug:
+    var: fetch_data_from_e1_output.stdout_lines

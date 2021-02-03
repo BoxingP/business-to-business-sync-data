@@ -1,3 +1,6 @@
 .idea/
 .vault_pass
 **/vault
+/vars/downloads/*
+!/vars/downloads/.gitkeep
+/vars/python/db.json
