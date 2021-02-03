@@ -1,0 +1,7 @@
+- name: insert test data
+  community.general.postgresql_query:
+    db: '{{ db_name }}'
+    path_to_script: vars/postgresql/insert_test_data.sql
+    encoding: UTF-8
+  become: yes
+  become_user: postgres

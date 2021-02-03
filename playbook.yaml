@@ -5,6 +5,8 @@
 - name: build environment
   hosts: localhost
   gather_facts: no
+  vars:
+    db_name: demo
   tasks:
     - name: init server environment
       include_role:
@@ -12,3 +14,5 @@
     - name: build postgresql
       include_role:
         name: 'build_postgresql'
+    - name: insert test data to postgresql
+      include_tasks: tasks/insert_test_data.yaml
