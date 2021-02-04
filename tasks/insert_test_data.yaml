@@ -1,7 +1,15 @@
-- name: insert test data
+- name: insert test data, step 1
   community.general.postgresql_query:
     db: '{{ db_name }}'
-    path_to_script: vars/postgresql/insert_test_data.sql
+    path_to_script: vars/postgresql/insert_sku_test_data.sql
+    encoding: UTF-8
+  become: yes
+  become_user: postgres
+
+- name: insert test data, step 2
+  community.general.postgresql_query:
+    db: '{{ db_name }}'
+    path_to_script: vars/postgresql/insert_st_test_data.sql
     encoding: UTF-8
   become: yes
   become_user: postgres
