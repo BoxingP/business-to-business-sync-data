@@ -1,0 +1,1 @@
+SELECT 1 FROM list_price WHERE product_id IN (SELECT product_id FROM product_list WHERE sku = '{0}') AND effective_date = TIMESTAMP '{1}' AND expiration_date = TIMESTAMP '{2}'

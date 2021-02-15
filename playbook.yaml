@@ -18,8 +18,10 @@
     - name: build postgresql
       include_role:
         name: 'build_postgresql'
-    - name: insert test data to postgresql
-      include_tasks: tasks/insert_test_data.yaml
+    - name: import data to postgresql, step 1
+      include_tasks: tasks/import_sku_data.yaml
+    - name: insert data to postgresql, step 2
+      include_tasks: tasks/import_st_data.yaml
     - name: build oracle environment
       include_tasks: tasks/build_oracle_environment.yaml
     - name: fetch data from E1
@@ -29,3 +31,4 @@
       environment:
         PATH: '{{ virtualenv }}/bin:{{ hostvars[inventory_hostname].ansible_env.PATH }}'
         LD_LIBRARY_PATH: '/opt/oracle/instantclient_21_1'
+      tags: python

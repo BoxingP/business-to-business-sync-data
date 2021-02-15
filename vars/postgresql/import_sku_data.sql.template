@@ -1,0 +1,1 @@
+INSERT INTO product_list (product_id, sku, business_unit, discontinued, created_by, created_date, updated_by, updated_date) VALUES (DEFAULT, '{0}', 'BID', '0', 'System', '2021-01-01 00:00:00', NULL, NULL)

@@ -34,17 +34,27 @@
   become: yes
   become_user: postgres
 
-- name: create table sku list in db
+- name: drop tables
   community.general.postgresql_table:
     db: '{{ db_name }}'
-    table: sku_list
+    table: '{{ item }}'
+    state: absent
+    cascade: yes
+  loop:
+    - product_list
+    - ship_to
+  become: yes
+  become_user: postgres
+
+- name: create table product list in db
+  community.general.postgresql_table:
+    db: '{{ db_name }}'
+    table: product_list
     columns:
-      - sku_id bigserial primary key
+      - product_id bigserial primary key
       - sku varchar(255) not null
       - business_unit varchar(255) not null
-      - is_active boolean
-      - effective_date timestamp
-      - expiration_date timestamp
+      - discontinued boolean
       - created_by varchar(255)
       - created_date timestamp
       - updated_by varchar(255)
@@ -59,6 +69,7 @@
     columns:
       - st_id bigserial primary key
       - st bigint not null
+      - is_default boolean
       - created_by varchar(255)
       - created_date timestamp
       - updated_by varchar(255)
@@ -71,8 +82,11 @@
     db: '{{ db_name }}'
     table: casmart_research_group
     columns:
-      - group_id bigserial primary key
-      - group_name varchar(255) not null
+      - research_group_id bigserial primary key
+      - research_group_name varchar(255) not null
+      - research_group_contact_name varchar(255) not null
+      - research_group_contact_phone varchar(255) not null
+      - sourcing varchar(255) not null
       - created_by varchar(255)
       - created_date timestamp
       - updated_by varchar(255)
@@ -86,12 +100,12 @@
     table: ship_to_casmart_research_group
     columns:
       - st_id bigint not null references ship_to
-      - group_id bigint not null references casmart_research_group
+      - research_group_id bigint not null references casmart_research_group
       - created_by varchar(255)
       - created_date timestamp
       - updated_by varchar(255)
       - updated_date timestamp
-      - primary key (st_id, group_id)
+      - primary key (st_id, research_group_id)
   become: yes
   become_user: postgres
 
@@ -101,8 +115,8 @@
     table: list_price
     columns:
       - list_price_id bigserial primary key
-      - sku_id bigint not null
-      - unit_price numeric not null
+      - product_id bigint not null
+      - list_price numeric not null
       - effective_date timestamp
       - expiration_date timestamp
       - created_by varchar(255)
@@ -122,7 +136,7 @@
       - quote_type char(1) not null
       - quote_number bigint not null
       - min_order_quantity bigint not null
-      - sku_id bigint not null
+      - product_id bigint not null
       - st_id bigint not null
       - effective_date timestamp
       - expiration_date timestamp
@@ -130,6 +144,25 @@
       - created_date timestamp
       - updated_by varchar(255)
       - updated_date timestamp
+  become: yes
+  become_user: postgres
+
+- name: create table product discontinued list in db
+  community.general.postgresql_table:
+    db: '{{ db_name }}'
+    table: product_discontinued_list
+    columns:
+      - sku varchar(255) not null
+  become: yes
+  become_user: postgres
+
+- name: create table product action list in db
+  community.general.postgresql_table:
+    db: '{{ db_name }}'
+    table: product_action_list
+    columns:
+      - product_id bigint not null
+      - action char(1) not null
   become: yes
   become_user: postgres
 

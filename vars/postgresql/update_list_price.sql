@@ -1,0 +1,1 @@
+UPDATE list_price SET list_price = {1}, updated_by = '{4}', updated_date = '{5}' WHERE product_id IN (SELECT product_id FROM product_list WHERE sku = '{0}') AND effective_date = '{2}' AND expiration_date = '{3}'

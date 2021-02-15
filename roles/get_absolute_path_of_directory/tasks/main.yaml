@@ -1,0 +1,10 @@
+- name: 'get absolute path of {{ directory }}'
+  changed_when: false
+  command: pwd
+  args:
+    chdir: '{{ path }}'
+  register: directory_path_output
+
+- name: 'set absolute path of {{ directory }}'
+  set_fact:
+    { "abs_{{ directory }}_path": "{{ directory_path_output.stdout }}" }
