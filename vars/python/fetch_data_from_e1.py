@@ -9,6 +9,7 @@ import json
 
 def jde_julian_date_to_datetime(jd, var='000000'):
     jd = str(jd)
+    var = str(var)
     year = 1900 + int(jd[:1]) * 100 + int(jd[1:3])
     date = datetime.datetime(year, 1, 1) + datetime.timedelta(int(jd[3:]) - 1)
     clock = datetime.datetime.strptime(var, '%H%M%S').time()
@@ -73,6 +74,26 @@ class OracleDatabase(Database):
             return True
         else:
             return False
+
+    def export_quote_price_data(self, sku_list, st_list, postgresql):
+        for st in st_list:
+            for sku in sku_list:
+                f_quote_price_data = self.run_sql('../oracle/get_f_quote_price.sql', sku, st,
+                                                  datetime_to_jde_julian_date(datetime.datetime.now()))
+                if not f_quote_price_data.empty:
+                    postgresql.update_quote_price(f_quote_price_data)
+                e_quote_price_data = self.run_sql('../oracle/get_e_quote_price.sql', sku, st,
+                                                  datetime_to_jde_julian_date(datetime.datetime.now()))
+                if not e_quote_price_data.empty:
+                    postgresql.update_quote_price(e_quote_price_data)
+                d_quote_price_data = self.run_sql('../oracle/get_d_quote_price.sql', sku, st,
+                                                  datetime_to_jde_julian_date(datetime.datetime.now()))
+                if not d_quote_price_data.empty:
+                    postgresql.update_quote_price(d_quote_price_data)
+                p_quote_price_data = self.run_sql('../oracle/get_p_quote_price.sql', sku, st,
+                                                  datetime_to_jde_julian_date(datetime.datetime.now()))
+                if not p_quote_price_data.empty:
+                    postgresql.update_quote_price(p_quote_price_data)
 
 
 class PostgresqlDatabase(Database):
@@ -157,6 +178,78 @@ class PostgresqlDatabase(Database):
         else:
             return False
 
+    def remove_discontinued_sku(self, sku_list):
+        result = []
+        for sku in sku_list:
+            if not self.sku_is_discontinued(sku):
+                result.append(sku)
+        return result
+
+    def update_quote_price(self, data):
+        data['EFFECTIVE_DATE'] = data['EFFECTIVE_DATE'].apply(jde_julian_date_to_datetime)
+        data['EXPIRATION_DATE'] = data['EXPIRATION_DATE'].apply(jde_julian_date_to_datetime, var='235959')
+        for index in range(0, data.shape[0]):
+            quote_type_value = data.iloc[index, 0].strip()
+            quote_number_value = data.iloc[index, 1]
+            sku_value = data.iloc[index, 2]
+            st_value = data.iloc[index, 3]
+            min_order_quantity_value = data.iloc[index, 4]
+            discount_value = data.iloc[index, 5]
+            fixed_price_value = data.iloc[index, 6]
+            effective_date_value = data.iloc[index, 7]
+            expiration_date_value = data.iloc[index, 8]
+            updated_time_value = jde_julian_date_to_datetime(data.iloc[index, 9], data.iloc[index, 10])
+
+            if self.quote_price_is_exist(sku_value, st_value, quote_type_value, quote_number_value):
+                if self.quote_price_is_updated(sku_value, st_value, quote_type_value, quote_number_value,
+                                               min_order_quantity_value, discount_value, fixed_price_value,
+                                               effective_date_value, expiration_date_value, updated_time_value):
+                    continue
+                else:
+                    query = self.generate_sql('../postgresql/update_quote_price.sql', sku_value, st_value,
+                                              quote_type_value, quote_number_value, min_order_quantity_value,
+                                              discount_value, fixed_price_value, effective_date_value,
+                                              expiration_date_value, 'System', updated_time_value)
+                    cursor = self.connection.cursor()
+                    cursor.execute(query)
+                    self.connection.commit()
+            else:
+                query = self.generate_sql('../postgresql/insert_quote_price.sql', discount_value, fixed_price_value,
+                                          quote_type_value, quote_number_value, min_order_quantity_value, sku_value,
+                                          st_value, effective_date_value, expiration_date_value,
+                                          'System', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                          'System', updated_time_value)
+                cursor = self.connection.cursor()
+                cursor.execute(query)
+                self.connection.commit()
+
+    def sku_is_discontinued(self, sku):
+        data = self.run_sql('../postgresql/check_sku_discontinued.sql', sku)
+        if data.empty:
+            return False
+        else:
+            return True
+
+    def quote_price_is_exist(self, sku, st, quote_type, quote_number):
+        data = self.run_sql('../postgresql/check_quote_price_exist.sql', sku, st, quote_type, quote_number)
+        if data.empty:
+            return False
+        else:
+            return True
+
+    def quote_price_is_updated(self, sku, st, quote_type, quote_number, min_order_quantity, discount, fixed_price,
+                               effective_date, expiration_date, updated_time):
+        if self.quote_price_is_exist(sku, st, quote_type, quote_number):
+            data = self.run_sql('../postgresql/check_quote_price_updated.sql', sku, st, quote_type, quote_number,
+                                min_order_quantity, discount, fixed_price, effective_date, expiration_date,
+                                updated_time)
+            if data.empty:
+                return False
+            else:
+                return True
+        else:
+            return False
+
 
 def main():
     time_started = datetime.datetime.utcnow()
@@ -164,6 +257,9 @@ def main():
     e1_db = OracleDatabase('../oracle/db.json')
     local_db = PostgresqlDatabase('../postgresql/db.json')
     local_db.open_connection()
+
+    st_list = local_db.run_sql('../postgresql/get_st_list.sql')
+    st_list = st_list['st'].tolist()
 
     while not local_db.product_is_updated(8):
         sku_list = local_db.run_sql('../postgresql/get_sku_list.sql', 8, 100)
@@ -178,11 +274,17 @@ def main():
         e1_db.open_connection()
         list_price_data = e1_db.export_list_price_data(sku_list)
         e1_db.close_connection()
-
         local_db.update_list_price(list_price_data)
+
+        sku_list = local_db.remove_discontinued_sku(sku_list)
+        e1_db.open_connection()
+        e1_db.export_quote_price_data(sku_list, st_list, local_db)
+        e1_db.close_connection()
+
         local_db.update_product_list_date(sku_list)
 
     local_db.export_table_data('product')
+    local_db.export_table_data('quote')
     local_db.close_connection()
 
     time_ended = datetime.datetime.utcnow()

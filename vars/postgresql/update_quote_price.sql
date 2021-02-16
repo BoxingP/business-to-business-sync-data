@@ -1,0 +1,1 @@
+UPDATE quote_price SET discount = {5}, fixed_price = {6}, min_order_quantity = {4}, effective_date = '{7}', expiration_date = '{8}', updated_by = '{9}', updated_date = '{10}' WHERE product_id IN (SELECT product_id FROM product_list WHERE sku = '{0}') AND st_id IN (SELECT st_id FROM ship_to WHERE st = {1}) AND quote_type = '{2}' AND quote_number = '{3}'

@@ -132,7 +132,8 @@
     table: quote_price
     columns:
       - quote_price_id bigserial primary key
-      - quote_price numeric not null
+      - discount numeric
+      - fixed_price numeric
       - quote_type char(1) not null
       - quote_number bigint not null
       - min_order_quantity bigint not null
