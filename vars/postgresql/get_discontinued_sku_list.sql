@@ -1,0 +1,1 @@
+SELECT sku FROM product_list WHERE discontinued = '1'

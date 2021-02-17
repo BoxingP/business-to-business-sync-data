@@ -7,3 +7,4 @@
 /vars/postgresql/*.csv
 /vars/postgresql/import_sku_data.sql
 /vars/postgresql/import_st_data.sql
+/vars/python/__pycache__/*

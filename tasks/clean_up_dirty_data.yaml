@@ -1,0 +1,9 @@
+- name: clean up dirty data
+  script: '{{ abs_python_path }}/clean_up_dirty_data.py'
+  args:
+    chdir: '{{ abs_python_path }}'
+    executable: '{{ virtualenv }}/bin/python3'
+  register: clean_up_dirty_data_output
+
+- debug:
+    var: clean_up_dirty_data_output.stdout_lines

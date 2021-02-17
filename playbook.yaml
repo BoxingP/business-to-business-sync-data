@@ -24,11 +24,18 @@
       include_tasks: tasks/import_st_data.yaml
     - name: build oracle environment
       include_tasks: tasks/build_oracle_environment.yaml
-    - name: fetch data from E1
+    - name: run python scripts
       block:
-        - name: run python script
+        - name: fetch data from E1
           include_tasks: tasks/fetch_data_from_e1.yaml
+        - name: export data to file
+          include_tasks: tasks/export_data_to_file.yaml
+        - name: clean up dirty data
+          include_tasks: tasks/clean_up_dirty_data.yaml
+      vars:
+        abs_python_path: '{{ playbook_dir }}/vars/python'
       environment:
         PATH: '{{ virtualenv }}/bin:{{ hostvars[inventory_hostname].ansible_env.PATH }}'
         LD_LIBRARY_PATH: '/opt/oracle/instantclient_21_1'
+        PYTHONPATH: '{{ playbook_dir }}/vars/python'
       tags: python

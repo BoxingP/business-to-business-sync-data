@@ -1,11 +1,4 @@
-- name: get absolute path of python scripts
-  include_role:
-    name: get_absolute_path_of_directory
-  vars:
-    directory: python
-    path: vars/python
-
-- name: run a python script
+- name: fetch data from e1
   script: '{{ abs_python_path }}/fetch_data_from_e1.py'
   args:
     chdir: '{{ abs_python_path }}'

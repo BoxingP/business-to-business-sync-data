@@ -162,8 +162,20 @@
     db: '{{ db_name }}'
     table: product_action_list
     columns:
-      - product_id bigint not null
+      - sku varchar(255) not null
       - action char(1) not null
+      - updated_date timestamp
+  become: yes
+  become_user: postgres
+
+- name: create table product action list backup in db
+  community.general.postgresql_table:
+    db: '{{ db_name }}'
+    table: product_action_list_backup
+    columns:
+      - sku varchar(255) not null
+      - action char(1) not null
+      - updated_date timestamp
   become: yes
   become_user: postgres
 

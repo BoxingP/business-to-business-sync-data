@@ -1,1 +1,1 @@
-SELECT * FROM product
+SELECT {0} FROM product
