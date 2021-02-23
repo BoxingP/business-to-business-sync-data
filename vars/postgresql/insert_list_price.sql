@@ -1,1 +1,1 @@
-INSERT INTO list_price (product_id, list_price, effective_date, expiration_date, created_by, created_date, updated_by, updated_date) SELECT product_list.product_id, {1}, '{2}', '{3}', '{4}', '{5}', '{6}', '{7}' FROM product_list WHERE product_list.sku = '{0}'
+INSERT INTO list_price (sku, list_price, effective_date, expiration_date, e1_updated_date, updated_by, updated_date) VALUES ('{0}', {1}, '{2}', '{3}', '{4}', '{5}', '{6}')

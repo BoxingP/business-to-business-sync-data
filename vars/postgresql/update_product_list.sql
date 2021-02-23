@@ -1,0 +1,1 @@
+UPDATE product_list SET discontinued = '{1}', updated_by = '{2}', updated_date = {3} WHERE sku IN ({0})

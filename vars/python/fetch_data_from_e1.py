@@ -6,38 +6,47 @@ from database import OracleDatabase, PostgresqlDatabase
 def main():
     time_started = datetime.datetime.utcnow()
 
-    e1_db = OracleDatabase('../oracle/db.json')
-    local_db = PostgresqlDatabase('../postgresql/db.json')
+    e1_db = OracleDatabase('../oracle/database_config.yaml')
+    local_db = PostgresqlDatabase('../postgresql/database_config.yaml')
     local_db.open_connection()
 
-    st_list = local_db.run_sql('../postgresql/get_st_list.sql')
-    st_list = st_list['st'].tolist()
-
-    while not local_db.product_is_updated(8):
-        sku_list = local_db.run_sql('../postgresql/get_sku_list.sql', 8, 100)
-        sku_list = sku_list['sku'].tolist()
-
+    while True:
+        if local_db.product_discontinued_status_is_updated():
+            break
+        product_list = local_db.get_not_updated_discontinued_status_product_list(1000)
         e1_db.open_connection()
-        for sku in sku_list:
-            if e1_db.sku_is_discontinued(sku):
-                local_db.update_sku_to_discontinued(sku)
+        product_list = e1_db.get_product_discontinued_status(product_list)
         e1_db.close_connection()
-
+        local_db.update_product_list(product_list, 'Updated Discontinued')
+    product_discontinued_list = local_db.get_product_discontinued_list()
+    if product_discontinued_list:
         e1_db.open_connection()
-        list_price_data = e1_db.export_list_price_data(sku_list)
+        product_discontinued_list = e1_db.get_product_discontinued_status(product_discontinued_list)
         e1_db.close_connection()
-        local_db.update_list_price(list_price_data)
+        local_db.move_non_discontinued_to_product_list(product_discontinued_list)
 
-        removed_discontinued_sku_list = local_db.remove_discontinued_sku(sku_list)
-        if removed_discontinued_sku_list:
-            e1_db.open_connection()
-            e1_db.export_quote_price_data(removed_discontinued_sku_list, st_list, local_db)
-            e1_db.close_connection()
+    while True:
+        if local_db.product_list_price_is_updated():
+            break
+        product_list = local_db.get_not_updated_list_price_product_list(1000)
+        e1_db.open_connection()
+        product_list = e1_db.get_product_list_price(product_list)
+        e1_db.close_connection()
+        local_db.update_list_price(product_list)
+        local_db.update_product_list(product_list, 'Updated List Price')
 
-        local_db.update_product_list_date(sku_list)
+    st_list = local_db.get_st_list()
+    while True:
+        if local_db.product_quote_price_is_updated():
+            break
+        product_list = local_db.get_not_updated_quote_price_product_list(1000)
+        e1_db.open_connection()
+        product_list = e1_db.get_product_quote_price(product_list, st_list)
+        e1_db.close_connection()
+        local_db.update_quote_price(product_list)
+        local_db.update_product_list(product_list, 'Updated Quote Price')
 
     local_db.close_connection()
-
     time_ended = datetime.datetime.utcnow()
     total_time = (time_ended - time_started).total_seconds()
     print('Total time is %ss.' % round(total_time))

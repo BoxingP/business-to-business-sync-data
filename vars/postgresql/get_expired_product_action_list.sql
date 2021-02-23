@@ -1,0 +1,1 @@
+SELECT sku, action, updated_date FROM product_action_list WHERE updated_date < NOW() - INTERVAL '3 MONTHS'

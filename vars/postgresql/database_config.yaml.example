@@ -1,0 +1,8 @@
+postgresql:
+  host:
+  port:
+  database:
+  username:
+  password:
+other:
+  table_needs_to_be_updated_in_hours:

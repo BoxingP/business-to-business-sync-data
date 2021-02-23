@@ -11,7 +11,7 @@ def is_night():
 
 
 def main():
-    local_db = PostgresqlDatabase('../postgresql/db.json')
+    local_db = PostgresqlDatabase('../postgresql/database_config.yaml')
     local_db.open_connection()
     if is_night():
         local_db.export_table_data('product', '*')
