@@ -166,6 +166,7 @@ class PostgresqlDatabase(Database):
             return True
 
     def update_quote_price(self, data):
+        empty = 'NULL'
         for index in range(0, data.shape[0]):
             quote_type_value = data.iloc[index, 0]
             quote_number_value = data.iloc[index, 1]
@@ -173,7 +174,11 @@ class PostgresqlDatabase(Database):
             st_value = data.iloc[index, 3]
             min_order_quantity_value = data.iloc[index, 4]
             discount_value = data.iloc[index, 5]
+            if discount_value == 0:
+                discount_value = empty
             fixed_price_value = data.iloc[index, 6]
+            if fixed_price_value == 0:
+                fixed_price_value = empty
             effective_date_value = data.iloc[index, 7]
             expiration_date_value = data.iloc[index, 8]
             updated_time_value = jde_julian_date_to_datetime(data.iloc[index, 9], data.iloc[index, 10])
