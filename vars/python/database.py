@@ -259,7 +259,8 @@ class PostgresqlDatabase(Database):
     def move_to_product_discontinued_list(self, product_list):
         cursor = self.connection.cursor()
         for product in product_list:
-            cursor.execute("INSERT INTO product_discontinued_list (sku) VALUES ('" + product + "')")
+            cursor.execute(
+                "INSERT INTO product_discontinued_list (sku) VALUES ('" + product + "') ON CONFLICT DO NOTHING")
         self.connection.commit()
         self.remove_discontinued_data_in_table(product_list, 'product_list')
 

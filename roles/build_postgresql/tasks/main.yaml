@@ -133,7 +133,7 @@
     db: '{{ db_name }}'
     table: product_discontinued_list
     columns:
-      - sku varchar(25) not null
+      - sku varchar(25) primary key
   become: yes
   become_user: postgres
 
