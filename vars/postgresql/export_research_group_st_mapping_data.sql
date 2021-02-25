@@ -1,0 +1,1 @@
+SELECT crg.research_group_name, crg.research_group_contact_name, crg.research_group_contact_phone, crg.sourcing, st.st, st.is_default AS is_st_default FROM casmart_research_group AS crg INNER JOIN ship_to AS st ON crg.st = st.st

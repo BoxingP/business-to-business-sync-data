@@ -1,1 +1,1 @@
-SELECT * FROM product_action
+SELECT sku, action FROM product_action_list

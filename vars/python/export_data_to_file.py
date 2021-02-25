@@ -13,13 +13,10 @@ def is_night():
 def main():
     local_db = PostgresqlDatabase('../postgresql/database_config.yaml')
     local_db.open_connection()
-    if is_night():
-        local_db.export_table_data('product', '*')
-    else:
-        local_db.export_table_data('product', 'sku, discontinued, business_unit')
-    local_db.export_table_data('quote')
-    local_db.export_table_data('product_action')
-    local_db.export_table_data('group_st_mapping')
+    local_db.export_data_to_csv('product', is_night())
+    local_db.export_data_to_csv('product_action')
+    local_db.export_data_to_csv('product_quote')
+    local_db.export_data_to_csv('research_group_st_mapping')
     local_db.close_connection()
 
 

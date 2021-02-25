@@ -154,10 +154,6 @@ class PostgresqlDatabase(Database):
                 cursor.execute(update_discontinued_sql)
         self.connection.commit()
 
-    def export_table_data(self, table, *args):
-        data = self.run_sql('../postgresql/export_' + table + '_data.sql', *args)
-        data.to_csv('../postgresql/' + table + '.csv', index=False)
-
     def list_price_is_exist(self, sku, effective_date, expiration_date):
         data = self.run_sql('../postgresql/check_list_price_exist.sql', sku, effective_date, expiration_date)
         if data.empty:
@@ -288,3 +284,7 @@ class PostgresqlDatabase(Database):
             cursor.execute(update_sql)
         cursor.execute("DELETE FROM product_action_list WHERE updated_date < NOW() - INTERVAL '3 MONTHS'")
         self.connection.commit()
+
+    def export_data_to_csv(self, name, is_night=False):
+        data = self.run_sql('../postgresql/export_' + name + '_data.sql', is_night)
+        data.to_csv('../postgresql/' + name + '.csv', index=False)

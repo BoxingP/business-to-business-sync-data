@@ -1,0 +1,1 @@
+SELECT sku, quote_type, quote_number, discount, fixed_price, min_order_quantity, st, effective_date AS quote_price_effective_date, expiration_date AS quote_price_expiration_date FROM quote_price

@@ -1,1 +1,1 @@
-SELECT {0} FROM product
+SELECT pl.sku, (CASE WHEN {0} THEN lp.list_price END) AS list_price, pl.discontinued, pl.business_unit FROM product_list AS pl LEFT JOIN list_price AS lp ON lp.sku = pl.sku AND lp.effective_date <= CURRENT_TIMESTAMP AND lp.expiration_date >= CURRENT_TIMESTAMP
