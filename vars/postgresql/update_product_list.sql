@@ -1,1 +1,1 @@
-UPDATE product_list SET discontinued = '{1}', updated_by = '{2}', updated_date = {3} WHERE sku IN ({0})
+UPDATE product_list SET updated_by = '{1}', updated_date = CASE WHEN updated_date IS NULL THEN {2} ELSE updated_date END WHERE sku IN ({0})

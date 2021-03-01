@@ -1,0 +1,1 @@
+SELECT 1 FROM list_price WHERE sku = '{0}' AND effective_date = TIMESTAMP '{1}' AND expiration_date = TIMESTAMP '{2}' AND list_price = {3} AND e1_updated_date = TIMESTAMP '{4}' FETCH FIRST 1 ROWS ONLY

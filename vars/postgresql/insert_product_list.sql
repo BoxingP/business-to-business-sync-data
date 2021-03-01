@@ -1,1 +1,1 @@
-INSERT INTO product_list (sku, business_unit, discontinued, created_by, created_date, updated_by, updated_date) VALUES ({0}, 'BID', '0', 'System', NOW(), 'Updated Discontinued', NOW())
+INSERT INTO product_list (sku, business_unit, discontinued, updated_by, updated_date) VALUES ('{0}', 'BID', '0', 'Updated Discontinued', NOW())

@@ -1,1 +1,1 @@
-SELECT sku, action FROM product_action_list
+SELECT sku, action FROM product_action_list WHERE updated_date >= NOW() - INTERVAL '{0} HOURS'

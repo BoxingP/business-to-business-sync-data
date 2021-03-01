@@ -1,1 +1,1 @@
-SELECT sku FROM product_list WHERE discontinued = '0' AND updated_by = '{0}' FETCH FIRST {1} ROWS ONLY
+SELECT sku FROM product_list WHERE discontinued = '0' AND (updated_by <> '{0}' OR updated_date IS NULL) FETCH FIRST {1} ROWS ONLY

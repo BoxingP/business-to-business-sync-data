@@ -5,4 +5,4 @@ postgresql:
   username:
   password:
 other:
-  table_needs_to_be_updated_in_hours:
+  only_get_the_updated_data_within_hours:

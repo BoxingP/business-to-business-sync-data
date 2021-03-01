@@ -1,0 +1,1 @@
+UPDATE product_list SET discontinued = '{1}' WHERE sku = '{0}'

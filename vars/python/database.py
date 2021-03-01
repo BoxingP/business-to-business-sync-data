@@ -107,16 +107,15 @@ class PostgresqlDatabase(Database):
         self.connection = connection
 
     def product_discontinued_status_is_updated(self):
-        hour = self.config['other']['table_needs_to_be_updated_in_hours']
-        result = self.run_sql('../postgresql/check_product_discontinued_status_is_updated.sql', hour)
+        result = self.run_sql('../postgresql/check_product_discontinued_status_is_updated.sql', 'Updated Discontinued')
         if result.empty:
             return True
         else:
             return False
 
     def get_not_updated_discontinued_status_product_list(self, number):
-        hour = self.config['other']['table_needs_to_be_updated_in_hours']
-        product_list = self.run_sql('../postgresql/get_not_updated_discontinued_status_product_list.sql', hour, number)
+        product_list = self.run_sql('../postgresql/get_not_updated_discontinued_status_product_list.sql',
+                                    'Updated Discontinued', number)
         return product_list['sku'].tolist()
 
     def update_list_price(self, data):
@@ -126,43 +125,65 @@ class PostgresqlDatabase(Database):
             effective_date_value = data.iloc[index, 2]
             expiration_date_value = data.iloc[index, 3]
             updated_date_value = data.iloc[index, 4]
+            update_sql = None
             if self.list_price_is_exist(sku_value, effective_date_value, expiration_date_value):
-                update_sql = self.generate_sql('../postgresql/update_list_price.sql',
-                                               sku_value, list_price_value, effective_date_value, expiration_date_value,
-                                               updated_date_value, 'System',
-                                               datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                if not self.list_price_is_updated(sku_value, effective_date_value, expiration_date_value,
+                                                  list_price_value, updated_date_value):
+                    update_sql = self.generate_sql('../postgresql/update_list_price.sql', sku_value, list_price_value,
+                                                   effective_date_value, expiration_date_value, updated_date_value,
+                                                   'System', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             else:
-                update_sql = self.generate_sql('../postgresql/insert_list_price.sql',
-                                               sku_value, list_price_value, effective_date_value, expiration_date_value,
-                                               updated_date_value, 'System',
-                                               datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-            cursor = self.connection.cursor()
-            cursor.execute(update_sql)
-            self.connection.commit()
+                update_sql = self.generate_sql('../postgresql/insert_list_price.sql', sku_value, list_price_value,
+                                               effective_date_value, expiration_date_value, updated_date_value,
+                                               'System', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            if update_sql is not None:
+                cursor = self.connection.cursor()
+                cursor.execute(update_sql)
+                self.connection.commit()
+
+    def update_discontinued_status(self, data):
+        cursor = self.connection.cursor()
+        for index in range(0, data.shape[0]):
+            sku_value = data.iloc[index, 0].strip()
+            discontinued_status_value = data.iloc[index, 1]
+            if not self.discontinued_status_is_updated(sku_value, discontinued_status_value):
+                update_sql = self.generate_sql('../postgresql/update_discontinued_status.sql', sku_value,
+                                               discontinued_status_value)
+                cursor.execute(update_sql)
+        self.connection.commit()
+
+    def discontinued_status_is_updated(self, sku, discontinued_status):
+        result = self.run_sql('../postgresql/check_discontinued_status_updated.sql', sku, discontinued_status)
+        if result.empty:
+            return False
+        else:
+            return True
 
     def update_product_list(self, data, operator='System', time='NOW()'):
         cursor = self.connection.cursor()
-        update_sql = self.generate_sql('../postgresql/update_product_list.sql',
-                                       str(data['SKU'].to_list())[1:-1], '0', operator, time)
+        update_sql = self.generate_sql('../postgresql/update_product_list.sql', str(data['SKU'].to_list())[1:-1],
+                                       operator, time)
         cursor.execute(update_sql)
-        if 'DISCONTINUED' in data.columns:
-            discontinued_df = data[data['DISCONTINUED'] == '1']
-            if not discontinued_df.empty:
-                update_discontinued_sql = self.generate_sql('../postgresql/update_product_list.sql',
-                                                            str(discontinued_df['SKU'].to_list())[1:-1], '1', operator,
-                                                            time)
-                cursor.execute(update_discontinued_sql)
         self.connection.commit()
 
     def list_price_is_exist(self, sku, effective_date, expiration_date):
-        data = self.run_sql('../postgresql/check_list_price_exist.sql', sku, effective_date, expiration_date)
-        if data.empty:
+        result = self.run_sql('../postgresql/check_list_price_exist.sql', sku, effective_date, expiration_date)
+        if result.empty:
+            return False
+        else:
+            return True
+
+    def list_price_is_updated(self, sku, effective_date, expiration_date, list_price, updated_date):
+        result = self.run_sql('../postgresql/check_list_price_updated.sql', sku, effective_date, expiration_date,
+                              list_price, updated_date)
+        if result.empty:
             return False
         else:
             return True
 
     def update_quote_price(self, data):
         empty = 'NULL'
+        cursor = self.connection.cursor()
         for index in range(0, data.shape[0]):
             quote_type_value = data.iloc[index, 0]
             quote_number_value = data.iloc[index, 1]
@@ -178,26 +199,38 @@ class PostgresqlDatabase(Database):
             effective_date_value = data.iloc[index, 7]
             expiration_date_value = data.iloc[index, 8]
             updated_time_value = jde_julian_date_to_datetime(data.iloc[index, 9], data.iloc[index, 10])
-
+            update_sql = None
             if self.quote_price_is_exist(sku_value, st_value, quote_type_value, quote_number_value):
-                update_sql = self.generate_sql('../postgresql/update_quote_price.sql', sku_value, st_value,
-                                               quote_type_value, quote_number_value, min_order_quantity_value,
-                                               discount_value, fixed_price_value, effective_date_value,
-                                               expiration_date_value, updated_time_value,
-                                               'System', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                if not self.quote_price_is_updated(sku_value, st_value, quote_type_value, quote_number_value,
+                                                   min_order_quantity_value, discount_value, fixed_price_value,
+                                                   effective_date_value, expiration_date_value, updated_time_value):
+                    update_sql = self.generate_sql('../postgresql/update_quote_price.sql', sku_value, st_value,
+                                                   quote_type_value, quote_number_value, min_order_quantity_value,
+                                                   discount_value, fixed_price_value, effective_date_value,
+                                                   expiration_date_value, updated_time_value,
+                                                   'System', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             else:
                 update_sql = self.generate_sql('../postgresql/insert_quote_price.sql', discount_value,
                                                fixed_price_value, quote_type_value, quote_number_value,
                                                min_order_quantity_value, sku_value, st_value, effective_date_value,
                                                expiration_date_value, updated_time_value,
                                                'System', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-            cursor = self.connection.cursor()
-            cursor.execute(update_sql)
-            self.connection.commit()
+            if update_sql is not None:
+                cursor.execute(update_sql)
+        self.connection.commit()
 
     def quote_price_is_exist(self, sku, st, quote_type, quote_number):
-        data = self.run_sql('../postgresql/check_quote_price_exist.sql', sku, st, quote_type, quote_number)
-        if data.empty:
+        result = self.run_sql('../postgresql/check_quote_price_exist.sql', sku, st, quote_type, quote_number)
+        if result.empty:
+            return False
+        else:
+            return True
+
+    def quote_price_is_updated(self, sku, st, quote_type, quote_number, min_order_quantity, discount, fixed_price,
+                               effective_date, expiration_date, updated_time):
+        result = self.run_sql('../postgresql/check_quote_price_updated.sql', sku, st, quote_type, quote_number,
+                              min_order_quantity, discount, fixed_price, effective_date, expiration_date, updated_time)
+        if result.empty:
             return False
         else:
             return True
@@ -221,14 +254,14 @@ class PostgresqlDatabase(Database):
         self.connection.commit()
 
     def product_list_price_is_updated(self):
-        result = self.run_sql('../postgresql/check_product_list_price_is_updated.sql', 'Updated Discontinued')
+        result = self.run_sql('../postgresql/check_product_list_price_is_updated.sql', 'Updated List Price')
         if result.empty:
             return True
         else:
             return False
 
     def get_not_updated_list_price_product_list(self, number):
-        product_list = self.run_sql('../postgresql/get_not_updated_list_price_product_list.sql', 'Updated Discontinued',
+        product_list = self.run_sql('../postgresql/get_not_updated_list_price_product_list.sql', 'Updated List Price',
                                     number)
         return product_list['sku'].tolist()
 
@@ -237,14 +270,14 @@ class PostgresqlDatabase(Database):
         return data['st'].tolist()
 
     def product_quote_price_is_updated(self):
-        result = self.run_sql('../postgresql/check_product_quote_price_is_updated.sql', 'Updated List Price')
+        result = self.run_sql('../postgresql/check_product_quote_price_is_updated.sql', 'Updated Quote Price')
         if result.empty:
             return True
         else:
             return False
 
     def get_not_updated_quote_price_product_list(self, number):
-        product_list = self.run_sql('../postgresql/get_not_updated_quote_price_product_list.sql', 'Updated List Price',
+        product_list = self.run_sql('../postgresql/get_not_updated_quote_price_product_list.sql', 'Updated Quote Price',
                                     number)
         return product_list['sku'].tolist()
 
@@ -286,5 +319,6 @@ class PostgresqlDatabase(Database):
         self.connection.commit()
 
     def export_data_to_csv(self, name, is_night=False):
-        data = self.run_sql('../postgresql/export_' + name + '_data.sql', is_night)
+        hour = self.config['other']['only_get_the_updated_data_within_hours']
+        data = self.run_sql('../postgresql/export_' + name + '_data.sql', hour, is_night)
         data.to_csv('../postgresql/' + name + '.csv', index=False)
