@@ -311,9 +311,10 @@ class PostgresqlDatabase(Database):
         for index in range(0, data.shape[0]):
             sku_value = data.iloc[index, 0]
             action_value = data.iloc[index, 1]
-            updated_date_value = data.iloc[index, 2]
+            updated_by_value = data.iloc[index, 2]
+            updated_date_value = data.iloc[index, 3]
             update_sql = self.generate_sql('../postgresql/insert_product_action_list_backup.sql', sku_value,
-                                           action_value, updated_date_value)
+                                           action_value, updated_by_value, updated_date_value)
             cursor.execute(update_sql)
         cursor.execute("DELETE FROM product_action_list WHERE updated_date < NOW() - INTERVAL '3 MONTHS'")
         self.connection.commit()
