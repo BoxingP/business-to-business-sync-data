@@ -34,6 +34,14 @@
   become: yes
   become_user: postgres
 
+- name: add extension to database
+  community.general.postgresql_ext:
+    name: btree_gist
+    db: '{{ db_name }}'
+    state: present
+  become: yes
+  become_user: postgres
+
 - name: drop tables
   community.general.postgresql_table:
     db: '{{ db_name }}'
@@ -132,6 +140,21 @@
       - e1_updated_date timestamp
       - updated_by varchar(25)
       - updated_date timestamp
+  become: yes
+  become_user: postgres
+
+- name: create index in table quote price
+  community.general.postgresql_idx:
+    db: '{{ db_name }}'
+    table: quote_price
+    columns:
+      - quote_type
+      - quote_number
+      - sku
+      - st
+    idxname: quote_price_idx
+    idxtype: gist
+    state: present
   become: yes
   become_user: postgres
 

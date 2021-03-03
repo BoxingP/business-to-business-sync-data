@@ -81,33 +81,38 @@ class OracleDatabase(Database):
 
     def get_product_quote_price(self, product_list, st_list):
         current_date = datetime_to_jde_julian_date(datetime.datetime.now())
-        data = pd.DataFrame()
         product_list = self.get_product_line(product_list)
         sku_list = product_list['SKU'].to_list()
         pl_list = list(dict.fromkeys(product_list['PL'].to_list()))
         sku_pl_mapping = product_list.groupby('PL', as_index=False).agg({'SKU': lambda x: list(x)})
-        for st in st_list:
-            f_quote_price_data = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st, 'f', current_date)
-            e_quote_price_data = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st, 'e', current_date)
-            d_quote_price_data = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st, 'd', current_date)
-            p_quote_price_data = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st, 'p', current_date)
-            result = pd.concat([f_quote_price_data, e_quote_price_data, d_quote_price_data, p_quote_price_data])
-            data = data.append(result, ignore_index=True)
-        if not data.empty:
-            data['SKU'] = data['SKU'].str.strip()
-            data['EFFECTIVE_DATE'] = data['EFFECTIVE_DATE'].apply(jde_julian_date_to_datetime)
-            data['EXPIRATION_DATE'] = data['EXPIRATION_DATE'].apply(jde_julian_date_to_datetime, var='235959')
-        return data
+        f_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st_list, 'f', current_date)
+        e_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st_list, 'e', current_date)
+        d_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st_list, 'd', current_date)
+        p_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st_list, 'p', current_date)
+        common_d_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, [90714], 'd', current_date)
+        common_p_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, [90714], 'p', current_date)
+        common_quote_price = pd.concat([common_d_quote_price, common_p_quote_price])
+        common_mapping = pd.DataFrame({'ST': [90714], 'SKU_LIST': [st_list]})
+        common_quote_price['ST'] = common_quote_price['ST'].map(common_mapping.set_index('ST')['SKU_LIST'])
+        common_quote_price = common_quote_price.explode('ST')
+        result = pd.concat([f_quote_price, e_quote_price, d_quote_price, p_quote_price, common_quote_price],
+                           ignore_index=True)
 
-    def get_quote_price(self, sku_list, pl_list, sku_pl_mapping, st, flag, date):
+        if not result.empty:
+            result['SKU'] = result['SKU'].str.strip()
+            result['EFFECTIVE_DATE'] = result['EFFECTIVE_DATE'].apply(jde_julian_date_to_datetime)
+            result['EXPIRATION_DATE'] = result['EXPIRATION_DATE'].apply(jde_julian_date_to_datetime, var='235959')
+        return result
+
+    def get_quote_price(self, sku_list, pl_list, sku_pl_mapping, st_list, flag, date):
         sku_quote_price = None
         pl_quote_price = None
         if sku_list:
-            sku_quote_price = self.run_sql('../oracle/get_' + flag + '_quote_price.sql', str(sku_list)[1:-1], 'Q5LITM',
-                                           st, date)
+            sku_quote_price = self.run_sql('../oracle/get_' + flag + '_quote_price.sql', str(sku_list)[1:-1],
+                                           'Q5LITM', ','.join(map(str, st_list)), date)
         if pl_list:
-            pl_quote_price = self.run_sql('../oracle/get_' + flag + '_quote_price.sql', str(pl_list)[1:-1], 'Q5ITTP',
-                                          st, date)
+            pl_quote_price = self.run_sql('../oracle/get_' + flag + '_quote_price.sql', str(pl_list)[1:-1],
+                                          'Q5ITTP', ','.join(map(str, st_list)), date)
         if pl_quote_price is not None:
             pl_quote_price['SKU'] = pl_quote_price['SKU'].str.strip().map(sku_pl_mapping.set_index('PL')['SKU'])
             pl_quote_price = pl_quote_price.explode('SKU')
