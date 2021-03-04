@@ -27,9 +27,10 @@ def update_product_quote_price(oracle, postgresql):
             break
         product_list = postgresql.get_not_updated_quote_price_product_list(1000)
         oracle.open_connection()
-        product_list = oracle.get_product_quote_price(product_list, st_list)
+        product_quote_price = oracle.get_product_quote_price(product_list, st_list)
         oracle.close_connection()
-        postgresql.update_quote_price(product_list)
+        if not product_quote_price.empty:
+            postgresql.update_quote_price(product_quote_price)
         postgresql.update_product_list(product_list, 'Updated Quote Price')
 
 
@@ -39,9 +40,10 @@ def update_product_list_price(oracle, postgresql):
             break
         product_list = postgresql.get_not_updated_list_price_product_list(1000)
         oracle.open_connection()
-        product_list = oracle.get_product_list_price(product_list)
+        product_list_price = oracle.get_product_list_price(product_list)
         oracle.close_connection()
-        postgresql.update_list_price(product_list)
+        if not product_list_price.empty:
+            postgresql.update_list_price(product_list_price)
         postgresql.update_product_list(product_list, 'Updated List Price')
 
 
@@ -51,9 +53,10 @@ def update_product_discontinued_status(oracle, postgresql):
             break
         product_list = postgresql.get_not_updated_discontinued_status_product_list(1000)
         oracle.open_connection()
-        product_list = oracle.get_product_discontinued_status(product_list)
+        product_discontinued_status = oracle.get_product_discontinued_status(product_list)
         oracle.close_connection()
-        postgresql.update_discontinued_status(product_list)
+        if not product_discontinued_status.empty:
+            postgresql.update_discontinued_status(product_discontinued_status)
         postgresql.update_product_list(product_list, 'Updated Discontinued')
     product_discontinued_list = postgresql.get_product_discontinued_list()
     if product_discontinued_list:

@@ -73,18 +73,19 @@ class OracleDatabase(Database):
     def get_product_list_price(self, product_list):
         data = self.run_sql('../oracle/get_product_list_price.sql', str(product_list)[1:-1],
                             datetime_to_jde_julian_date(datetime.datetime.now()))
-        data['SKU'] = data['SKU'].str.strip()
-        data['EFFECTIVE_DATE'] = data['EFFECTIVE_DATE'].apply(jde_julian_date_to_datetime)
-        data['EXPIRATION_DATE'] = data['EXPIRATION_DATE'].apply(jde_julian_date_to_datetime, var='235959')
-        data['UPDATED_DATE'] = data['UPDATED_DATE'].apply(jde_julian_date_to_datetime)
+        if not data.empty:
+            data['SKU'] = data['SKU'].str.strip()
+            data['EFFECTIVE_DATE'] = data['EFFECTIVE_DATE'].apply(jde_julian_date_to_datetime)
+            data['EXPIRATION_DATE'] = data['EXPIRATION_DATE'].apply(jde_julian_date_to_datetime, var='235959')
+            data['UPDATED_DATE'] = data['UPDATED_DATE'].apply(jde_julian_date_to_datetime)
         return data
 
     def get_product_quote_price(self, product_list, st_list):
         current_date = datetime_to_jde_julian_date(datetime.datetime.now())
-        product_list = self.get_product_line(product_list)
-        sku_list = product_list['SKU'].to_list()
-        pl_list = list(dict.fromkeys(product_list['PL'].to_list()))
-        sku_pl_mapping = product_list.groupby('PL', as_index=False).agg({'SKU': lambda x: list(x)})
+        sku_list = product_list
+        product_line = self.get_product_line(product_list)
+        sku_pl_mapping = product_line.groupby('PL', as_index=False).agg({'SKU': lambda x: list(x)})
+        pl_list = sku_pl_mapping['PL'].to_list()
         f_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st_list, 'f', current_date)
         e_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st_list, 'e', current_date)
         d_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st_list, 'd', current_date)
@@ -190,8 +191,7 @@ class PostgresqlDatabase(Database):
 
     def update_product_list(self, data, operator='System', time='NOW()'):
         cursor = self.connection.cursor()
-        update_sql = self.generate_sql('../postgresql/update_product_list.sql', str(data['SKU'].to_list())[1:-1],
-                                       operator, time)
+        update_sql = self.generate_sql('../postgresql/update_product_list.sql', str(data)[1:-1], operator, time)
         cursor.execute(update_sql)
         self.connection.commit()
 
