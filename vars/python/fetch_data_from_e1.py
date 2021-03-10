@@ -21,24 +21,24 @@ def main():
 
 
 def update_product_quote_price(oracle, postgresql):
-    st_list = postgresql.get_st_list()
-    while True:
-        if postgresql.product_quote_price_is_updated():
-            break
-        product_list = postgresql.get_not_updated_quote_price_product_list(1000)
-        oracle.open_connection()
-        product_quote_price = oracle.get_product_quote_price(product_list, st_list)
-        oracle.close_connection()
-        if not product_quote_price.empty:
-            postgresql.update_quote_price(product_quote_price)
-        postgresql.update_product_list(product_list, 'Updated Quote Price')
+    sts = postgresql.get_st()
+    for st_chunk in sts:
+        st_list = st_chunk['st'].tolist()
+        products = postgresql.get_product('../postgresql/get_product.sql')
+        for product_chunk in products:
+            product_list = product_chunk['sku'].tolist()
+            oracle.open_connection()
+            product_quote_price = oracle.get_product_quote_price(product_list, st_list)
+            oracle.close_connection()
+            if not product_quote_price.empty:
+                postgresql.update_quote_price(product_quote_price)
+            postgresql.update_product_list(product_list, 'Updated Quote Price')
 
 
 def update_product_list_price(oracle, postgresql):
-    while True:
-        if postgresql.product_list_price_is_updated():
-            break
-        product_list = postgresql.get_not_updated_list_price_product_list(1000)
+    products = postgresql.get_product('../postgresql/get_product.sql')
+    for product_chunk in products:
+        product_list = product_chunk['sku'].tolist()
         oracle.open_connection()
         product_list_price = oracle.get_product_list_price(product_list)
         oracle.close_connection()
@@ -48,22 +48,23 @@ def update_product_list_price(oracle, postgresql):
 
 
 def update_product_discontinued_status(oracle, postgresql):
-    while True:
-        if postgresql.product_discontinued_status_is_updated():
-            break
-        product_list = postgresql.get_not_updated_discontinued_status_product_list(1000)
+    products = postgresql.get_product('../postgresql/get_product.sql')
+    for product_chunk in products:
+        product_list = product_chunk['sku'].tolist()
         oracle.open_connection()
         product_discontinued_status = oracle.get_product_discontinued_status(product_list)
         oracle.close_connection()
         if not product_discontinued_status.empty:
             postgresql.update_discontinued_status(product_discontinued_status)
         postgresql.update_product_list(product_list, 'Updated Discontinued')
-    product_discontinued_list = postgresql.get_product_discontinued_list()
-    if product_discontinued_list:
+    products_discontinued = postgresql.get_product('../postgresql/get_product_discontinued.sql')
+    for product_chunk in products_discontinued:
+        product_list = product_chunk['sku'].tolist()
         oracle.open_connection()
-        product_discontinued_list = oracle.get_product_discontinued_status(product_discontinued_list)
+        product_discontinued_status = oracle.get_product_discontinued_status(product_list)
         oracle.close_connection()
-        postgresql.move_non_discontinued_to_product_list(product_discontinued_list)
+        if not product_discontinued_status.empty:
+            postgresql.move_non_discontinued_to_product_list(product_discontinued_status)
 
 
 if __name__ == '__main__':

@@ -1,1 +1,1 @@
-SELECT sku FROM product_discontinued_list
+SELECT sku, business_unit FROM product_discontinued_list WHERE sku IN ({0})

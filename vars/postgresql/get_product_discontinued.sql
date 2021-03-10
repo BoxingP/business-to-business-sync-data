@@ -1,0 +1,1 @@
+SELECT sku FROM product_discontinued_list ORDER BY sku

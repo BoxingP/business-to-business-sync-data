@@ -1,1 +1,0 @@
-INSERT INTO quote_price (discount, fixed_price, quote_type, quote_number, min_order_quantity, sku, st, effective_date, expiration_date, e1_updated_date, updated_by, updated_date) VALUES ({0}, {1}, '{2}', {3}, {4}, '{5}', {6}, '{7}', '{8}', '{9}', '{10}', '{11}')

@@ -1,1 +1,1 @@
-INSERT INTO product_list (sku, business_unit, discontinued, updated_by, updated_date) VALUES ('{0}', 'BID', '0', 'Updated Discontinued', NOW())
+INSERT INTO product_list (sku, business_unit, discontinued) VALUES {} ON CONFLICT DO NOTHING

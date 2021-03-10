@@ -1,1 +1,1 @@
-SELECT sku FROM product_list WHERE discontinued = '1'
+SELECT sku, business_unit FROM product_list WHERE discontinued = '1'

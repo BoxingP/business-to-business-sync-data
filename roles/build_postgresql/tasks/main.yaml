@@ -62,8 +62,8 @@
       - sku varchar(25) not null primary key
       - business_unit varchar(25) not null
       - discontinued boolean not null
-      - updated_by varchar(25)
-      - updated_date timestamp
+      - updated_by varchar(25) default 'System'
+      - updated_date timestamp default current_timestamp
   become: yes
   become_user: postgres
 
@@ -117,8 +117,23 @@
       - effective_date timestamp
       - expiration_date timestamp
       - e1_updated_date timestamp
-      - updated_by varchar(25)
-      - updated_date timestamp
+      - updated_by varchar(25) default 'System'
+      - updated_date timestamp default current_timestamp
+  become: yes
+  become_user: postgres
+
+- name: create index in table list price
+  community.general.postgresql_idx:
+    db: '{{ db_name }}'
+    table: list_price
+    columns:
+      - sku
+      - effective_date
+      - expiration_date
+    idxname: list_price_idx
+    idxtype: btree
+    unique: yes
+    state: present
   become: yes
   become_user: postgres
 
@@ -128,18 +143,18 @@
     table: quote_price
     columns:
       - quote_price_id bigserial primary key
-      - discount numeric
-      - fixed_price numeric
       - quote_type char(1) not null
       - quote_number integer not null
-      - min_order_quantity integer not null
       - sku varchar(25) not null
       - st integer not null
+      - min_order_quantity integer not null
+      - discount numeric
+      - fixed_price numeric
       - effective_date timestamp
       - expiration_date timestamp
       - e1_updated_date timestamp
-      - updated_by varchar(25)
-      - updated_date timestamp
+      - updated_by varchar(25) default 'System'
+      - updated_date timestamp default current_timestamp
   become: yes
   become_user: postgres
 
@@ -153,7 +168,8 @@
       - sku
       - st
     idxname: quote_price_idx
-    idxtype: gist
+    idxtype: btree
+    unique: yes
     state: present
   become: yes
   become_user: postgres
@@ -164,6 +180,7 @@
     table: product_discontinued_list
     columns:
       - sku varchar(25) primary key
+      - business_unit varchar(25) not null
   become: yes
   become_user: postgres
 

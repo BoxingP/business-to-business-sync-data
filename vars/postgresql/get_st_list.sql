@@ -1,1 +1,0 @@
-SELECT st FROM ship_to

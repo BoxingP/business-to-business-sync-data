@@ -1,1 +1,0 @@
-INSERT INTO list_price (sku, list_price, effective_date, expiration_date, e1_updated_date, updated_by, updated_date) VALUES ('{0}', {1}, '{2}', '{3}', '{4}', '{5}', '{6}')

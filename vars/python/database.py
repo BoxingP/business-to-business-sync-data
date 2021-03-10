@@ -3,6 +3,7 @@ import datetime
 import cx_Oracle
 import pandas as pd
 import psycopg2
+import psycopg2.extras
 
 import yaml
 
@@ -27,6 +28,12 @@ def datetime_to_jde_julian_date(time):
     return int(julian_date)
 
 
+def flow_from_dataframe(dataframe: pd.DataFrame, chunk_size: int = 1000):
+    for start_row in range(0, dataframe.shape[0], chunk_size):
+        end_row = min(start_row + chunk_size, dataframe.shape[0])
+        yield dataframe.iloc[start_row:end_row, :]
+
+
 class Database(object):
     def __init__(self, config_file):
         self.config = self.load_config(config_file)
@@ -37,6 +44,11 @@ class Database(object):
         with open(config_file, 'r', encoding='UTF-8') as file:
             config = yaml.load(file, Loader=yaml.BaseLoader)
         return config
+
+    @staticmethod
+    def read_sql(sql):
+        with open(sql, 'r', encoding='UTF-8') as file:
+            return file.read()
 
     @staticmethod
     def generate_sql(sql, *args):
@@ -65,9 +77,9 @@ class OracleDatabase(Database):
         non_discontinued_list = [product.strip() for product in data['SKU'].tolist()]
         discontinued_list = list(set(product_list) - set(non_discontinued_list))
         non_discontinued_df = pd.DataFrame(non_discontinued_list, columns=['SKU'])
-        non_discontinued_df['DISCONTINUED'] = '0'
+        non_discontinued_df['DISCONTINUED'] = False
         discontinued_df = pd.DataFrame(discontinued_list, columns=['SKU'])
-        discontinued_df['DISCONTINUED'] = '1'
+        discontinued_df['DISCONTINUED'] = True
         return non_discontinued_df.append(discontinued_df, ignore_index=True)
 
     def get_product_list_price(self, product_list):
@@ -77,7 +89,7 @@ class OracleDatabase(Database):
             data['SKU'] = data['SKU'].str.strip()
             data['EFFECTIVE_DATE'] = data['EFFECTIVE_DATE'].apply(jde_julian_date_to_datetime)
             data['EXPIRATION_DATE'] = data['EXPIRATION_DATE'].apply(jde_julian_date_to_datetime, var='235959')
-            data['UPDATED_DATE'] = data['UPDATED_DATE'].apply(jde_julian_date_to_datetime)
+            data['E1_UPDATED_DATE'] = data['E1_UPDATED_DATE'].apply(jde_julian_date_to_datetime)
         return data
 
     def get_product_quote_price(self, product_list, st_list):
@@ -88,21 +100,23 @@ class OracleDatabase(Database):
         pl_list = sku_pl_mapping['PL'].to_list()
         f_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st_list, 'f', current_date)
         e_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st_list, 'e', current_date)
-        d_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st_list, 'd', current_date)
-        p_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st_list, 'p', current_date)
-        common_d_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, [90714], 'd', current_date)
-        common_p_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, [90714], 'p', current_date)
-        common_quote_price = pd.concat([common_d_quote_price, common_p_quote_price])
+        d_p_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st_list, 'd_p', current_date)
+        common_d_p_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, [90714], 'd_p', current_date)
         common_mapping = pd.DataFrame({'ST': [90714], 'SKU_LIST': [st_list]})
-        common_quote_price['ST'] = common_quote_price['ST'].map(common_mapping.set_index('ST')['SKU_LIST'])
-        common_quote_price = common_quote_price.explode('ST')
-        result = pd.concat([f_quote_price, e_quote_price, d_quote_price, p_quote_price, common_quote_price],
-                           ignore_index=True)
+        common_d_p_quote_price['ST'] = common_d_p_quote_price['ST'].map(common_mapping.set_index('ST')['SKU_LIST'])
+        common_d_p_quote_price = common_d_p_quote_price.explode('ST')
+        result = pd.concat([f_quote_price, e_quote_price, d_p_quote_price, common_d_p_quote_price], ignore_index=True)
 
+        result["E1_UPDATED_DATE"] = ""
         if not result.empty:
             result['SKU'] = result['SKU'].str.strip()
             result['EFFECTIVE_DATE'] = result['EFFECTIVE_DATE'].apply(jde_julian_date_to_datetime)
             result['EXPIRATION_DATE'] = result['EXPIRATION_DATE'].apply(jde_julian_date_to_datetime, var='235959')
+            result['DISCOUNT'] = result['DISCOUNT'].apply(lambda x: None if x == 0 else x)
+            result['FIXED_PRICE'] = result['FIXED_PRICE'].apply(lambda x: None if x == 0 else x)
+            result['E1_UPDATED_DATE'] = result.apply(
+                lambda row: jde_julian_date_to_datetime(row.DATE_UPDATED, row.TIME_UPDATED), axis=1)
+        result.drop(['DATE_UPDATED', 'TIME_UPDATED'], inplace=True, axis=1)
         return result
 
     def get_quote_price(self, sku_list, pl_list, sku_pl_mapping, st_list, flag, date):
@@ -136,58 +150,38 @@ class PostgresqlDatabase(Database):
                                       host=login['host'], port=login['port'])
         self.connection = connection
 
-    def product_discontinued_status_is_updated(self):
-        result = self.run_sql('../postgresql/check_product_discontinued_status_is_updated.sql', 'Updated Discontinued')
-        if result.empty:
-            return True
-        else:
-            return False
-
-    def get_not_updated_discontinued_status_product_list(self, number):
-        product_list = self.run_sql('../postgresql/get_not_updated_discontinued_status_product_list.sql',
-                                    'Updated Discontinued', number)
-        return product_list['sku'].tolist()
-
     def update_list_price(self, data):
-        for index in range(0, data.shape[0]):
-            sku_value = data.iloc[index, 0].strip()
-            list_price_value = data.iloc[index, 1]
-            effective_date_value = data.iloc[index, 2]
-            expiration_date_value = data.iloc[index, 3]
-            updated_date_value = data.iloc[index, 4]
-            update_sql = None
-            if self.list_price_is_exist(sku_value, effective_date_value, expiration_date_value):
-                if not self.list_price_is_updated(sku_value, effective_date_value, expiration_date_value,
-                                                  list_price_value, updated_date_value):
-                    update_sql = self.generate_sql('../postgresql/update_list_price.sql', sku_value, list_price_value,
-                                                   effective_date_value, expiration_date_value, updated_date_value,
-                                                   'System', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-            else:
-                update_sql = self.generate_sql('../postgresql/insert_list_price.sql', sku_value, list_price_value,
-                                               effective_date_value, expiration_date_value, updated_date_value,
-                                               'System', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-            if update_sql is not None:
-                cursor = self.connection.cursor()
-                cursor.execute(update_sql)
+        cursor = self.connection.cursor()
+        get_chunk = flow_from_dataframe(data)
+        for chunk in get_chunk:
+            prices = chunk.itertuples(index=False, name=None)
+            need_to_update = []
+            for price in prices:
+                if not self.list_price_is_updated(price):
+                    need_to_update.append(price)
+            if need_to_update:
+                records_list_template = ','.join(['%s'] * len(need_to_update))
+                query = self.read_sql('../postgresql/update_list_price.sql').format(records_list_template)
+                cursor.execute(query, need_to_update)
                 self.connection.commit()
 
     def update_discontinued_status(self, data):
         cursor = self.connection.cursor()
-        for index in range(0, data.shape[0]):
-            sku_value = data.iloc[index, 0].strip()
-            discontinued_status_value = data.iloc[index, 1]
-            if not self.discontinued_status_is_updated(sku_value, discontinued_status_value):
-                update_sql = self.generate_sql('../postgresql/update_discontinued_status.sql', sku_value,
-                                               discontinued_status_value)
-                cursor.execute(update_sql)
-        self.connection.commit()
+        statuses = data.itertuples(index=False, name=None)
+        need_to_update = []
+        for status in statuses:
+            if not self.discontinued_status_is_updated(status):
+                need_to_update.append(status)
+        if need_to_update:
+            query = self.read_sql('../postgresql/update_discontinued_status.sql')
+            psycopg2.extras.execute_values(cursor, query, need_to_update)
 
-    def discontinued_status_is_updated(self, sku, discontinued_status):
-        result = self.run_sql('../postgresql/check_discontinued_status_updated.sql', sku, discontinued_status)
-        if result.empty:
-            return False
-        else:
-            return True
+    def discontinued_status_is_updated(self, status):
+        cursor = self.connection.cursor()
+        query = cursor.mogrify(self.read_sql('../postgresql/check_discontinued_status_updated.sql'), status).decode(
+            'utf-8')
+        cursor.execute(query)
+        return cursor.fetchone() is not None
 
     def update_product_list(self, data, operator='System', time='NOW()'):
         cursor = self.connection.cursor()
@@ -195,137 +189,77 @@ class PostgresqlDatabase(Database):
         cursor.execute(update_sql)
         self.connection.commit()
 
-    def list_price_is_exist(self, sku, effective_date, expiration_date):
-        result = self.run_sql('../postgresql/check_list_price_exist.sql', sku, effective_date, expiration_date)
-        if result.empty:
-            return False
-        else:
-            return True
-
-    def list_price_is_updated(self, sku, effective_date, expiration_date, list_price, updated_date):
-        result = self.run_sql('../postgresql/check_list_price_updated.sql', sku, effective_date, expiration_date,
-                              list_price, updated_date)
-        if result.empty:
-            return False
-        else:
-            return True
+    def list_price_is_updated(self, price):
+        cursor = self.connection.cursor()
+        query = cursor.mogrify(self.read_sql('../postgresql/check_list_price_updated.sql'), price).decode('utf-8')
+        cursor.execute(query)
+        return cursor.fetchone() is not None
 
     def update_quote_price(self, data):
-        empty = 'NULL'
         cursor = self.connection.cursor()
-        for index in range(0, data.shape[0]):
-            quote_type_value = data.iloc[index, 0]
-            quote_number_value = data.iloc[index, 1]
-            sku_value = data.iloc[index, 2]
-            st_value = data.iloc[index, 3]
-            min_order_quantity_value = data.iloc[index, 4]
-            discount_value = data.iloc[index, 5]
-            if discount_value == 0:
-                discount_value = empty
-            fixed_price_value = data.iloc[index, 6]
-            if fixed_price_value == 0:
-                fixed_price_value = empty
-            effective_date_value = data.iloc[index, 7]
-            expiration_date_value = data.iloc[index, 8]
-            updated_time_value = jde_julian_date_to_datetime(data.iloc[index, 9], data.iloc[index, 10])
-            update_sql = None
-            if self.quote_price_is_exist(sku_value, st_value, quote_type_value, quote_number_value):
-                if not self.quote_price_is_updated(sku_value, st_value, quote_type_value, quote_number_value,
-                                                   min_order_quantity_value, discount_value, fixed_price_value,
-                                                   effective_date_value, expiration_date_value, updated_time_value):
-                    update_sql = self.generate_sql('../postgresql/update_quote_price.sql', sku_value, st_value,
-                                                   quote_type_value, quote_number_value, min_order_quantity_value,
-                                                   discount_value, fixed_price_value, effective_date_value,
-                                                   expiration_date_value, updated_time_value,
-                                                   'System', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-            else:
-                update_sql = self.generate_sql('../postgresql/insert_quote_price.sql', discount_value,
-                                               fixed_price_value, quote_type_value, quote_number_value,
-                                               min_order_quantity_value, sku_value, st_value, effective_date_value,
-                                               expiration_date_value, updated_time_value,
-                                               'System', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-            if update_sql is not None:
-                cursor.execute(update_sql)
-        self.connection.commit()
+        get_chunk = flow_from_dataframe(data)
+        for chunk in get_chunk:
+            quotes = chunk.itertuples(index=False, name=None)
+            need_to_update = []
+            for quote in quotes:
+                if not self.quote_price_is_updated(quote):
+                    need_to_update.append(quote)
+            if need_to_update:
+                records_list_template = ','.join(['%s'] * len(need_to_update))
+                query = self.read_sql('../postgresql/update_quote_price.sql').format(records_list_template)
+                cursor.execute(query, need_to_update)
+                self.connection.commit()
 
-    def quote_price_is_exist(self, sku, st, quote_type, quote_number):
-        result = self.run_sql('../postgresql/check_quote_price_exist.sql', sku, st, quote_type, quote_number)
-        if result.empty:
-            return False
-        else:
-            return True
-
-    def quote_price_is_updated(self, sku, st, quote_type, quote_number, min_order_quantity, discount, fixed_price,
-                               effective_date, expiration_date, updated_time):
-        result = self.run_sql('../postgresql/check_quote_price_updated.sql', sku, st, quote_type, quote_number,
-                              min_order_quantity, discount, fixed_price, effective_date, expiration_date, updated_time)
-        if result.empty:
-            return False
-        else:
-            return True
-
-    def get_product_discontinued_list(self):
-        data = self.run_sql('../postgresql/get_product_discontinued_list.sql')
-        return data['sku'].tolist()
+    def quote_price_is_updated(self, quote):
+        cursor = self.connection.cursor()
+        query = cursor.mogrify(self.read_sql('../postgresql/check_quote_price_updated.sql'), quote).decode('utf-8')
+        cursor.execute(query)
+        return cursor.fetchone() is not None
 
     def move_non_discontinued_to_product_list(self, product_list):
-        non_discontinued_df = product_list[product_list['DISCONTINUED'] == '0']
+        non_discontinued_df = product_list[~product_list['DISCONTINUED']]
         if non_discontinued_df.empty:
             return None
-        non_discontinued_list = [product.strip() for product in non_discontinued_df['SKU'].tolist()]
-        cursor = self.connection.cursor()
-        for product in non_discontinued_list:
-            insert_sql = self.generate_sql('../postgresql/insert_product_list.sql', product)
-            cursor.execute(insert_sql)
-        delete_sql = self.generate_sql('../postgresql/delete_product_discontinued_list',
+        non_discontinued_list = non_discontinued_df['SKU'].tolist()
+        data = self.run_sql('../postgresql/get_product_discontinued_list.sql', str(non_discontinued_list)[1:-1])
+        data["discontinued"] = False
+        products = list(data.itertuples(index=False, name=None))
+        records_list_template = ','.join(['%s'] * len(products))
+        insert_query = self.read_sql('../postgresql/insert_product_list.sql').format(records_list_template)
+        delete_sql = self.generate_sql('../postgresql/delete_product_discontinued_list.sql',
                                        str(non_discontinued_list)[1:-1])
+        cursor = self.connection.cursor()
+        cursor.execute(insert_query, products)
         cursor.execute(delete_sql)
         self.connection.commit()
 
-    def product_list_price_is_updated(self):
-        result = self.run_sql('../postgresql/check_product_list_price_is_updated.sql', 'Updated List Price')
-        if result.empty:
-            return True
-        else:
-            return False
+    def get_st(self):
+        data = self.run_sql('../postgresql/get_st.sql')
+        get_chunk = flow_from_dataframe(data)
+        return get_chunk
 
-    def get_not_updated_list_price_product_list(self, number):
-        product_list = self.run_sql('../postgresql/get_not_updated_list_price_product_list.sql', 'Updated List Price',
-                                    number)
-        return product_list['sku'].tolist()
-
-    def get_st_list(self):
-        data = self.run_sql('../postgresql/get_st_list.sql')
-        return data['st'].tolist()
-
-    def product_quote_price_is_updated(self):
-        result = self.run_sql('../postgresql/check_product_quote_price_is_updated.sql', 'Updated Quote Price')
-        if result.empty:
-            return True
-        else:
-            return False
-
-    def get_not_updated_quote_price_product_list(self, number):
-        product_list = self.run_sql('../postgresql/get_not_updated_quote_price_product_list.sql', 'Updated Quote Price',
-                                    number)
-        return product_list['sku'].tolist()
+    def get_product(self, sql):
+        data = self.run_sql(sql)
+        get_chunk = flow_from_dataframe(data)
+        return get_chunk
 
     def get_discontinued_product_list(self):
-        product_list = self.run_sql('../postgresql/get_discontinued_product_list.sql')
-        return product_list['sku'].tolist()
+        return self.run_sql('../postgresql/get_discontinued_product_list.sql')
 
-    def remove_discontinued_data_in_table(self, product_list, table):
+    def remove_discontinued_data_in_table(self, data, table):
+        product_list = data['sku'].tolist()
         cursor = self.connection.cursor()
         cursor.execute("DELETE FROM " + table + " WHERE sku IN (" + str(product_list)[1:-1] + ")")
         self.connection.commit()
 
-    def move_to_product_discontinued_list(self, product_list):
+    def move_to_product_discontinued_list(self, data):
+        products = list(data.itertuples(index=False, name=None))
+        records_list_template = ','.join(['%s'] * len(products))
+        query = self.read_sql('../postgresql/insert_product_discontinued_list.sql').format(records_list_template)
         cursor = self.connection.cursor()
-        for product in product_list:
-            cursor.execute(
-                "INSERT INTO product_discontinued_list (sku) VALUES ('" + product + "') ON CONFLICT DO NOTHING")
+        cursor.execute(query, products)
         self.connection.commit()
-        self.remove_discontinued_data_in_table(product_list, 'product_list')
+        self.remove_discontinued_data_in_table(data, 'product_list')
 
     def remove_expired_data_in_table(self, table):
         cursor = self.connection.cursor()
@@ -336,17 +270,15 @@ class PostgresqlDatabase(Database):
 
     def move_to_product_action_list_backup(self):
         data = self.run_sql('../postgresql/get_expired_product_action_list.sql')
-        cursor = self.connection.cursor()
-        for index in range(0, data.shape[0]):
-            sku_value = data.iloc[index, 0]
-            action_value = data.iloc[index, 1]
-            updated_by_value = data.iloc[index, 2]
-            updated_date_value = data.iloc[index, 3]
-            update_sql = self.generate_sql('../postgresql/insert_product_action_list_backup.sql', sku_value,
-                                           action_value, updated_by_value, updated_date_value)
-            cursor.execute(update_sql)
-        cursor.execute("DELETE FROM product_action_list WHERE updated_date < NOW() - INTERVAL '3 MONTHS'")
-        self.connection.commit()
+        if not data.empty:
+            expired_products_action = list(data.itertuples(index=False, name=None))
+            records_list_template = ','.join(['%s'] * len(expired_products_action))
+            insert_query = self.read_sql('../postgresql/insert_product_action_list_backup.sql').format(
+                records_list_template)
+            cursor = self.connection.cursor()
+            cursor.execute(insert_query, expired_products_action)
+            cursor.execute("DELETE FROM product_action_list WHERE updated_date < NOW() - INTERVAL '3 MONTHS'")
+            self.connection.commit()
 
     def export_data_to_csv(self, name, is_night=False):
         hour = self.config['other']['only_get_the_updated_data_within_hours']

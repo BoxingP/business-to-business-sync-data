@@ -1,1 +1,1 @@
-INSERT INTO product_action_list_backup (sku, action, updated_by, updated_date) VALUES ('{0}', '{1}', '{2}', '{3}')
+INSERT INTO product_action_list_backup (sku, action, updated_by, updated_date) VALUES {}
