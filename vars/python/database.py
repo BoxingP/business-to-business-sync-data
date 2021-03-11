@@ -205,9 +205,10 @@ class PostgresqlDatabase(Database):
                 if not self.quote_price_is_updated(quote):
                     need_to_update.append(quote)
             if need_to_update:
-                records_list_template = ','.join(['%s'] * len(need_to_update))
+                remove_duplicates = list(set(need_to_update))
+                records_list_template = ','.join(['%s'] * len(remove_duplicates))
                 query = self.read_sql('../postgresql/update_quote_price.sql').format(records_list_template)
-                cursor.execute(query, need_to_update)
+                cursor.execute(query, remove_duplicates)
                 self.connection.commit()
 
     def quote_price_is_updated(self, quote):

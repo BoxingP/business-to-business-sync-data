@@ -167,6 +167,7 @@
       - quote_number
       - sku
       - st
+      - min_order_quantity
     idxname: quote_price_idx
     idxtype: btree
     unique: yes
