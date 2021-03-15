@@ -281,7 +281,13 @@ class PostgresqlDatabase(Database):
             cursor.execute("DELETE FROM product_action_list WHERE updated_date < NOW() - INTERVAL '3 MONTHS'")
             self.connection.commit()
 
-    def export_data_to_csv(self, name, is_night=False):
-        hour = self.config['other']['only_get_the_updated_data_within_hours']
-        data = self.run_sql('../postgresql/export_' + name + '_data.sql', hour, is_night)
-        data.to_csv('../postgresql/' + name + '.csv', index=False)
+    def export_data_to_csv(self, name, *args):
+        hour = int(self.config['other']['only_get_the_updated_data_within_hours'])
+        if name == 'product':
+            parameters = (hour, *args)
+        else:
+            parameters = (hour, )
+        cursor = self.connection.cursor()
+        query = cursor.mogrify(self.read_sql('../postgresql/export_' + name + '_data.sql'), parameters).decode('utf-8')
+        with open('../postgresql/' + name + '.csv', 'w') as file:
+            cursor.copy_expert(query, file)
