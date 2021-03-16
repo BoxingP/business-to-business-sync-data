@@ -34,6 +34,20 @@ def flow_from_dataframe(dataframe: pd.DataFrame, chunk_size: int = 1000):
         yield dataframe.iloc[start_row:end_row, :]
 
 
+def format_quote_price_result(result):
+    result["E1_UPDATED_DATE"] = ""
+    if not result.empty:
+        result['SKU'] = result['SKU'].str.strip()
+        result['EFFECTIVE_DATE'] = result['EFFECTIVE_DATE'].apply(jde_julian_date_to_datetime)
+        result['EXPIRATION_DATE'] = result['EXPIRATION_DATE'].apply(jde_julian_date_to_datetime, var='235959')
+        result['DISCOUNT'] = result['DISCOUNT'].apply(lambda x: None if x == 0 else x)
+        result['FIXED_PRICE'] = result['FIXED_PRICE'].apply(lambda x: None if x == 0 else x)
+        result['E1_UPDATED_DATE'] = result.apply(
+            lambda row: jde_julian_date_to_datetime(row.DATE_UPDATED, row.TIME_UPDATED), axis=1)
+    result.drop(['DATE_UPDATED', 'TIME_UPDATED'], inplace=True, axis=1)
+    return result
+
+
 class Database(object):
     def __init__(self, config_file):
         self.config = self.load_config(config_file)
@@ -93,33 +107,33 @@ class OracleDatabase(Database):
         return data
 
     def get_product_quote_price(self, product_list, st_list):
-        current_date = datetime_to_jde_julian_date(datetime.datetime.now())
+        sku_quote_price = None
+        pl_quote_price = None
         sku_list = product_list
         product_line = self.get_product_line(product_list)
         sku_pl_mapping = product_line.groupby('PL', as_index=False).agg({'SKU': lambda x: list(x)})
         pl_list = sku_pl_mapping['PL'].to_list()
-        f_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st_list, 'f', current_date)
-        e_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st_list, 'e', current_date)
-        d_p_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, st_list, 'd_p', current_date)
-        common_d_p_quote_price = self.get_quote_price(sku_list, pl_list, sku_pl_mapping, [90714], 'd_p', current_date)
-        common_mapping = pd.DataFrame({'ST': [90714], 'SKU_LIST': [st_list]})
-        common_d_p_quote_price['ST'] = common_d_p_quote_price['ST'].map(common_mapping.set_index('ST')['SKU_LIST'])
-        common_d_p_quote_price = common_d_p_quote_price.explode('ST')
-        result = pd.concat([f_quote_price, e_quote_price, d_p_quote_price, common_d_p_quote_price], ignore_index=True)
 
-        result["E1_UPDATED_DATE"] = ""
-        if not result.empty:
-            result['SKU'] = result['SKU'].str.strip()
-            result['EFFECTIVE_DATE'] = result['EFFECTIVE_DATE'].apply(jde_julian_date_to_datetime)
-            result['EXPIRATION_DATE'] = result['EXPIRATION_DATE'].apply(jde_julian_date_to_datetime, var='235959')
-            result['DISCOUNT'] = result['DISCOUNT'].apply(lambda x: None if x == 0 else x)
-            result['FIXED_PRICE'] = result['FIXED_PRICE'].apply(lambda x: None if x == 0 else x)
-            result['E1_UPDATED_DATE'] = result.apply(
-                lambda row: jde_julian_date_to_datetime(row.DATE_UPDATED, row.TIME_UPDATED), axis=1)
-        result.drop(['DATE_UPDATED', 'TIME_UPDATED'], inplace=True, axis=1)
-        return result
+        sku_f_quote_price, pl_f_quote_price = self.get_quote_price(sku_list, pl_list, 'f', st_list)
+        sku_e_quote_price, pl_e_quote_price = self.get_quote_price(sku_list, pl_list, 'e', st_list)
+        sku_d_p_quote_price, pl_d_p_quote_price = self.get_quote_price(sku_list, pl_list, 'd_p', st_list)
+        sku_share_quote_price, pl_share_quote_price = self.get_share_quote_price(sku_list, pl_list, st_list)
 
-    def get_quote_price(self, sku_list, pl_list, sku_pl_mapping, st_list, flag, date):
+        sku_quote_price_result = [sku_f_quote_price, sku_e_quote_price, sku_d_p_quote_price, sku_share_quote_price]
+        pl_quote_price_result = [pl_f_quote_price, pl_e_quote_price, pl_d_p_quote_price, pl_share_quote_price]
+        if not all(df is None for df in sku_quote_price_result):
+            sku_quote_price = pd.concat(sku_quote_price_result, ignore_index=True)
+            sku_quote_price = format_quote_price_result(sku_quote_price)
+        if not all(df is None for df in pl_quote_price_result):
+            pl_quote_price = pd.concat(pl_quote_price_result, ignore_index=True)
+            pl_quote_price['SKU'] = pl_quote_price['SKU'].str.strip().map(sku_pl_mapping.set_index('PL')['SKU'])
+            pl_quote_price = pl_quote_price.explode('SKU')
+            pl_quote_price = format_quote_price_result(pl_quote_price)
+
+        return sku_quote_price, pl_quote_price
+
+    def get_quote_price(self, sku_list, pl_list, flag, st_list,
+                        date=datetime_to_jde_julian_date(datetime.datetime.now())):
         sku_quote_price = None
         pl_quote_price = None
         if sku_list:
@@ -128,10 +142,19 @@ class OracleDatabase(Database):
         if pl_list:
             pl_quote_price = self.run_sql('../oracle/get_' + flag + '_quote_price.sql', str(pl_list)[1:-1],
                                           'Q5ITTP', ','.join(map(str, st_list)), date)
+        return sku_quote_price, pl_quote_price
+
+    def get_share_quote_price(self, sku_list, pl_list, st_list):
+        origin = [90714]
+        share_mapping = pd.DataFrame({'ST': origin, 'SKU_LIST': [st_list]})
+        sku_quote_price, pl_quote_price = self.get_quote_price(sku_list, pl_list, 'd_p', origin)
+        if sku_quote_price is not None:
+            sku_quote_price['ST'] = sku_quote_price['ST'].map(share_mapping.set_index('ST')['SKU_LIST'])
+            sku_quote_price = sku_quote_price.explode('ST')
         if pl_quote_price is not None:
-            pl_quote_price['SKU'] = pl_quote_price['SKU'].str.strip().map(sku_pl_mapping.set_index('PL')['SKU'])
-            pl_quote_price = pl_quote_price.explode('SKU')
-        return pd.concat([sku_quote_price, pl_quote_price])
+            pl_quote_price['ST'] = pl_quote_price['ST'].map(share_mapping.set_index('ST')['SKU_LIST'])
+            pl_quote_price = pl_quote_price.explode('ST')
+        return sku_quote_price, pl_quote_price
 
     def get_product_line(self, product_list):
         data = self.run_sql('../oracle/get_product_line.sql', str(product_list)[1:-1])

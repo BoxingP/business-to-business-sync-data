@@ -30,8 +30,9 @@ def update_product_quote_price(oracle, postgresql):
             oracle.open_connection()
             product_quote_price = oracle.get_product_quote_price(product_list, st_list)
             oracle.close_connection()
-            if not product_quote_price.empty:
-                postgresql.update_quote_price(product_quote_price)
+            if not all(df is None for df in product_quote_price):
+                postgresql.update_quote_price(product_quote_price[1])
+                postgresql.update_quote_price(product_quote_price[0])
             postgresql.update_product_list(product_list, 'Updated Quote Price')
 
 
