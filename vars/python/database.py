@@ -1,4 +1,7 @@
+import csv
 import datetime
+from io import StringIO
+from sqlalchemy import create_engine
 
 import cx_Oracle
 import pandas as pd
@@ -173,6 +176,12 @@ class PostgresqlDatabase(Database):
                                       host=login['host'], port=login['port'])
         self.connection = connection
 
+    def create_engine(self):
+        login = self.config['postgresql']
+        connect = "postgresql+psycopg2://{}:{}@{}:{}/{}".format(login['username'], login['password'], login['host'],
+                                                                login['port'], login['database'])
+        return create_engine(connect)
+
     def update_list_price(self, data):
         cursor = self.connection.cursor()
         get_chunk = flow_from_dataframe(data)
@@ -219,20 +228,44 @@ class PostgresqlDatabase(Database):
         return cursor.fetchone() is not None
 
     def update_quote_price(self, data):
-        cursor = self.connection.cursor()
-        get_chunk = flow_from_dataframe(data)
+        get_chunk = flow_from_dataframe(data, 50000)
         for chunk in get_chunk:
-            quotes = chunk.itertuples(index=False, name=None)
-            need_to_update = []
-            for quote in quotes:
-                if not self.quote_price_is_updated(quote):
-                    need_to_update.append(quote)
-            if need_to_update:
-                remove_duplicates = list(set(need_to_update))
-                records_list_template = ','.join(['%s'] * len(remove_duplicates))
-                query = self.read_sql('../postgresql/update_quote_price.sql').format(records_list_template)
-                cursor.execute(query, remove_duplicates)
-                self.connection.commit()
+            chunk.to_sql(name='quote_price', con=self.create_engine(), method=self.upsert_copy, index=False,
+                         if_exists='append')
+
+    def upsert_copy(self, table, conn, keys, data_iter):
+        postgresql_conn = conn.connection
+
+        buffer = StringIO()
+        writer = csv.writer(buffer)
+        writer.writerows(data_iter)
+        buffer.seek(0)
+
+        if table.schema:
+            table_name = '{}.{}'.format(table.schema, table.name)
+        else:
+            table_name = table.name
+
+        tmp_table_name = table_name + '_staging'
+
+        headers = ['quote_type', 'quote_number', 'sku', 'st', 'min_order_quantity', 'discount', 'fixed_price',
+                   'effective_date', 'expiration_date', 'e1_updated_date']
+        columns = ', '.join('{}'.format(k) for k in headers)
+        pk_columns = 'quote_type, quote_number, sku, st, min_order_quantity, effective_date, expiration_date'
+        data_headers = ['discount', 'fixed_price', 'e1_updated_date']
+        set_ = ', '.join(['{} = EXCLUDED.{}'.format(k, k) for k in data_headers])
+
+        with postgresql_conn.cursor() as cursor:
+            query = 'CREATE TEMPORARY TABLE {} ( LIKE {} ) ON COMMIT DROP'.format(tmp_table_name, table_name)
+            cursor.execute(query)
+            query = 'ALTER TABLE {} DROP COLUMN quote_price_id, DROP COLUMN updated_by, DROP COLUMN updated_date'.format(
+                tmp_table_name)
+            cursor.execute(query)
+            query = 'COPY {} ({}) FROM STDIN WITH CSV'.format(tmp_table_name, columns)
+            cursor.copy_expert(sql=query, file=buffer)
+            query = self.read_sql('../postgresql/update_quote_price.sql').format(table_name, columns, columns,
+                                                                                 tmp_table_name, pk_columns, set_)
+            cursor.execute(query)
 
     def quote_price_is_updated(self, quote):
         cursor = self.connection.cursor()

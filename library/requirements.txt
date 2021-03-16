@@ -2,3 +2,4 @@ cx_Oracle
 pandas
 psycopg2
 pyyaml
+sqlalchemy

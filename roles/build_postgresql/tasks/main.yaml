@@ -168,6 +168,8 @@
       - sku
       - st
       - min_order_quantity
+      - effective_date
+      - expiration_date
     idxname: quote_price_idx
     idxtype: btree
     unique: yes

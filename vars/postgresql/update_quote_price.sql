@@ -1,1 +1,1 @@
-INSERT INTO quote_price (quote_type, quote_number, sku, st, min_order_quantity, discount, fixed_price, effective_date, expiration_date, e1_updated_date) VALUES {} ON CONFLICT (quote_type, quote_number, sku, st, min_order_quantity) DO UPDATE SET (discount, fixed_price, effective_date, expiration_date, e1_updated_date) = (EXCLUDED.discount, EXCLUDED.fixed_price, EXCLUDED.effective_date, EXCLUDED.expiration_date, EXCLUDED.e1_updated_date)
+INSERT INTO {} ({}) SELECT {} FROM {} ON CONFLICT ({}) DO UPDATE SET {}
