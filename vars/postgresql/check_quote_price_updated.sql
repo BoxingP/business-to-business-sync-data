@@ -1,1 +1,0 @@
-SELECT 1 FROM quote_price WHERE quote_type = %s AND quote_number = %s AND sku = %s AND st = %s AND min_order_quantity = %s AND discount = %s AND fixed_price = %s AND effective_date = %s AND expiration_date = %s AND e1_updated_date = %s FETCH FIRST 1 ROWS ONLY

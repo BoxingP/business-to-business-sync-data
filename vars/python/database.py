@@ -230,10 +230,11 @@ class PostgresqlDatabase(Database):
     def update_quote_price(self, data):
         get_chunk = flow_from_dataframe(data, 50000)
         for chunk in get_chunk:
-            chunk.to_sql(name='quote_price', con=self.create_engine(), method=self.upsert_copy, index=False,
+            chunk.drop_duplicates(keep=False, inplace=True)
+            chunk.to_sql(name='quote_price', con=self.create_engine(), method=self.upsert_table, index=False,
                          if_exists='append')
 
-    def upsert_copy(self, table, conn, keys, data_iter):
+    def upsert_table(self, table, conn, keys, data_iter):
         postgresql_conn = conn.connection
 
         buffer = StringIO()
@@ -248,30 +249,32 @@ class PostgresqlDatabase(Database):
 
         tmp_table_name = table_name + '_staging'
 
-        headers = ['quote_type', 'quote_number', 'sku', 'st', 'min_order_quantity', 'discount', 'fixed_price',
-                   'effective_date', 'expiration_date', 'e1_updated_date']
-        columns = ', '.join('{}'.format(k) for k in headers)
-        pk_columns = 'quote_type, quote_number, sku, st, min_order_quantity, effective_date, expiration_date'
-        data_headers = ['discount', 'fixed_price', 'e1_updated_date']
-        set_ = ', '.join(['{} = EXCLUDED.{}'.format(k, k) for k in data_headers])
-
         with postgresql_conn.cursor() as cursor:
+            columns = list(map(str.lower, keys))
+
+            query = cursor.mogrify(self.read_sql('../postgresql/get_table_index_columns.sql'), (table_name,)).decode(
+                'utf-8')
+            cursor.execute(query)
+            index_columns = cursor.fetchone()[0]
+
+            data_columns = list(set(columns) - set(index_columns))
+            set_ = ', '.join(['{} = EXCLUDED.{}'.format(k, k) for k in data_columns])
+
+            query = cursor.mogrify(self.read_sql('../postgresql/get_table_columns.sql'), (table_name,)).decode('utf-8')
+            cursor.execute(query)
+            full_columns = cursor.fetchone()[0]
+            drop_ = ', '.join(['DROP COLUMN {}'.format(k) for k in list(set(full_columns) - set(columns))])
+
             query = 'CREATE TEMPORARY TABLE {} ( LIKE {} ) ON COMMIT DROP'.format(tmp_table_name, table_name)
             cursor.execute(query)
-            query = 'ALTER TABLE {} DROP COLUMN quote_price_id, DROP COLUMN updated_by, DROP COLUMN updated_date'.format(
-                tmp_table_name)
+            query = 'ALTER TABLE {} {}'.format(tmp_table_name, drop_)
             cursor.execute(query)
-            query = 'COPY {} ({}) FROM STDIN WITH CSV'.format(tmp_table_name, columns)
+            query = 'COPY {} ({}) FROM STDIN WITH CSV'.format(tmp_table_name, ', '.join(columns))
             cursor.copy_expert(sql=query, file=buffer)
-            query = self.read_sql('../postgresql/update_quote_price.sql').format(table_name, columns, columns,
-                                                                                 tmp_table_name, pk_columns, set_)
+            query = self.read_sql('../postgresql/update_quote_price.sql').format(table_name, ', '.join(columns),
+                                                                                 ', '.join(columns), tmp_table_name,
+                                                                                 ', '.join(index_columns), set_)
             cursor.execute(query)
-
-    def quote_price_is_updated(self, quote):
-        cursor = self.connection.cursor()
-        query = cursor.mogrify(self.read_sql('../postgresql/check_quote_price_updated.sql'), quote).decode('utf-8')
-        cursor.execute(query)
-        return cursor.fetchone() is not None
 
     def move_non_discontinued_to_product_list(self, product_list):
         non_discontinued_df = product_list[~product_list['DISCONTINUED']]
