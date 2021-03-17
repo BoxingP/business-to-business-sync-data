@@ -12,28 +12,27 @@ def main():
 
     update_product_discontinued_status(e1_db, local_db)
     update_product_list_price(e1_db, local_db)
-    update_product_quote_price(e1_db, local_db)
-
+    sts = local_db.get_st()
+    for st_chunk in sts:
+        update_product_quote_price(e1_db, local_db, st_chunk['st'].tolist(), 'quote_price', ['f', 'e', 'd', 'p'])
+    update_product_quote_price(e1_db, local_db, [90714], 'shared_quote_price', ['d', 'p'])
     local_db.close_connection()
     time_ended = datetime.datetime.utcnow()
     total_time = (time_ended - time_started).total_seconds()
     print('Total time is %ss.' % round(total_time))
 
 
-def update_product_quote_price(oracle, postgresql):
-    sts = postgresql.get_st()
-    for st_chunk in sts:
-        st_list = st_chunk['st'].tolist()
-        products = postgresql.get_product('../postgresql/get_product.sql')
-        for product_chunk in products:
-            product_list = product_chunk['sku'].tolist()
-            oracle.open_connection()
-            product_quote_price = oracle.get_product_quote_price(product_list, st_list)
-            oracle.close_connection()
-            if not all(df is None for df in product_quote_price):
-                postgresql.update_quote_price(product_quote_price[1])
-                postgresql.update_quote_price(product_quote_price[0])
-            postgresql.update_product_list(product_list, 'Updated Quote Price')
+def update_product_quote_price(oracle, postgresql, st_list, table, quote_type):
+    products = postgresql.get_product('../postgresql/get_product.sql')
+    for product_chunk in products:
+        product_list = product_chunk['sku'].tolist()
+        oracle.open_connection()
+        product_quote_price = oracle.get_product_quote_price(product_list, st_list, quote_type)
+        oracle.close_connection()
+        if not all(df is None for df in product_quote_price):
+            postgresql.update_quote_price(product_quote_price[1], table)
+            postgresql.update_quote_price(product_quote_price[0], table)
+        postgresql.update_product_list(product_list, 'Updated Quote Price')
 
 
 def update_product_list_price(oracle, postgresql):

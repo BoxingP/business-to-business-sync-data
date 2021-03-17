@@ -177,6 +177,45 @@
   become: yes
   become_user: postgres
 
+- name: create table shared quote price in db
+  community.general.postgresql_table:
+    db: '{{ db_name }}'
+    table: shared_quote_price
+    columns:
+      - quote_price_id bigserial primary key
+      - quote_type char(1) not null
+      - quote_number integer not null
+      - sku varchar(25) not null
+      - st integer not null
+      - min_order_quantity integer not null
+      - discount numeric
+      - fixed_price numeric
+      - effective_date timestamp
+      - expiration_date timestamp
+      - e1_updated_date timestamp
+      - updated_by varchar(25) default 'System'
+      - updated_date timestamp default current_timestamp
+  become: yes
+  become_user: postgres
+
+- name: create index in table shared quote price
+  community.general.postgresql_idx:
+    db: '{{ db_name }}'
+    table: shared_quote_price
+    columns:
+      - quote_type
+      - quote_number
+      - sku
+      - min_order_quantity
+      - effective_date
+      - expiration_date
+    idxname: shared_quote_price_idx
+    idxtype: btree
+    unique: yes
+    state: present
+  become: yes
+  become_user: postgres
+
 - name: create table product discontinued list in db
   community.general.postgresql_table:
     db: '{{ db_name }}'
