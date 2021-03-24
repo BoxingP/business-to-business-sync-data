@@ -1,1 +1,0 @@
-INSERT INTO list_price (sku, list_price, effective_date, expiration_date, e1_updated_date) VALUES {} ON CONFLICT (sku, effective_date, expiration_date) DO UPDATE SET (sku, list_price, effective_date, expiration_date, e1_updated_date) = (EXCLUDED.sku, EXCLUDED.list_price, EXCLUDED.effective_date, EXCLUDED.expiration_date, EXCLUDED.e1_updated_date)

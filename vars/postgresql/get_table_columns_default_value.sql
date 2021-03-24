@@ -1,0 +1,1 @@
+SELECT column_name, column_default FROM information_schema.COLUMNS WHERE table_name = %s AND column_name IN %s ORDER BY ordinal_position

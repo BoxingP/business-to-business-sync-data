@@ -93,7 +93,8 @@ class OracleDatabase(Database):
             data['EFFECTIVE_DATE'] = data['EFFECTIVE_DATE'].apply(jde_julian_date_to_datetime)
             data['EXPIRATION_DATE'] = data['EXPIRATION_DATE'].apply(jde_julian_date_to_datetime, var='235959')
             data['E1_UPDATED_DATE'] = data['E1_UPDATED_DATE'].apply(jde_julian_date_to_datetime)
-        return data
+            return data
+        return None
 
     def get_product_quote_price(self, product_list, st_list, quote_type_list):
         sku_list = product_list
@@ -124,7 +125,8 @@ class OracleDatabase(Database):
                                           'Q5ITTP', ','.join(map(str, st_list)), date)
         return sku_quote_price, pl_quote_price
 
-    def format_quote_price_result(self, df_list, sku_pl_mapping=None):
+    @staticmethod
+    def format_quote_price_result(df_list, sku_pl_mapping=None):
         if all(df is None for df in df_list):
             return None
         result = pd.concat(df_list, ignore_index=True)
@@ -166,21 +168,6 @@ class PostgresqlDatabase(Database):
                                                                 login['port'], login['database'])
         return create_engine(connect)
 
-    def update_list_price(self, data):
-        cursor = self.connection.cursor()
-        get_chunk = flow_from_dataframe(data)
-        for chunk in get_chunk:
-            prices = chunk.itertuples(index=False, name=None)
-            need_to_update = []
-            for price in prices:
-                if not self.list_price_is_updated(price):
-                    need_to_update.append(price)
-            if need_to_update:
-                records_list_template = ','.join(['%s'] * len(need_to_update))
-                query = self.read_sql('../postgresql/update_list_price.sql').format(records_list_template)
-                cursor.execute(query, need_to_update)
-                self.connection.commit()
-
     def update_discontinued_status(self, data):
         cursor = self.connection.cursor()
         statuses = data.itertuples(index=False, name=None)
@@ -205,13 +192,7 @@ class PostgresqlDatabase(Database):
         cursor.execute(update_sql)
         self.connection.commit()
 
-    def list_price_is_updated(self, price):
-        cursor = self.connection.cursor()
-        query = cursor.mogrify(self.read_sql('../postgresql/check_list_price_updated.sql'), price).decode('utf-8')
-        cursor.execute(query)
-        return cursor.fetchone() is not None
-
-    def update_quote_price(self, data, table):
+    def update_price(self, data, table):
         get_chunk = flow_from_dataframe(data, 50000)
         for chunk in get_chunk:
             chunk.drop_duplicates(keep=False, inplace=True)
@@ -234,30 +215,38 @@ class PostgresqlDatabase(Database):
         tmp_table_name = table_name + '_staging'
 
         with postgresql_conn.cursor() as cursor:
-            columns = list(map(str.lower, keys))
+            df_columns = list(map(str.lower, keys))
 
-            query = cursor.mogrify(self.read_sql('../postgresql/get_table_index_columns.sql'), (table_name,)).decode(
-                'utf-8')
-            cursor.execute(query)
+            cursor.execute(cursor.mogrify(self.read_sql('../postgresql/get_table_index_columns.sql'),
+                                          (table_name, True)).decode('utf-8'))
+            primary_column = cursor.fetchone()[0]
+
+            cursor.execute(cursor.mogrify(self.read_sql('../postgresql/get_table_index_columns.sql'),
+                                          (table_name, False)).decode('utf-8'))
             index_columns = cursor.fetchone()[0]
 
-            data_columns = list(set(columns) - set(index_columns))
+            data_columns = list(set(df_columns) - set(index_columns))
             set_ = ', '.join(['{} = EXCLUDED.{}'.format(k, k) for k in data_columns])
 
-            query = cursor.mogrify(self.read_sql('../postgresql/get_table_columns.sql'), (table_name,)).decode('utf-8')
-            cursor.execute(query)
+            cursor.execute(cursor.mogrify(self.read_sql('../postgresql/get_table_columns.sql'),
+                                          (table_name,)).decode('utf-8'))
             full_columns = cursor.fetchone()[0]
-            drop_ = ', '.join(['DROP COLUMN {}'.format(k) for k in list(set(full_columns) - set(columns))])
+            drop_ = ', '.join(['DROP COLUMN {}'.format(k) for k in list(set(full_columns) - set(df_columns))])
 
-            query = 'CREATE TEMPORARY TABLE {} ( LIKE {} ) ON COMMIT DROP'.format(tmp_table_name, table_name)
-            cursor.execute(query)
-            query = 'ALTER TABLE {} {}'.format(tmp_table_name, drop_)
-            cursor.execute(query)
-            query = 'COPY {} ({}) FROM STDIN WITH CSV'.format(tmp_table_name, ', '.join(columns))
+            flag_columns = tuple(set(full_columns) - set(df_columns) - set(primary_column))
+            query = cursor.mogrify(self.read_sql('../postgresql/get_table_columns_default_value.sql'),
+                                   (table_name, flag_columns)).decode('utf-8')
+            flag_columns_value = (pd.read_sql(query, con=self.connection)).itertuples(index=False, name=None)
+            flag_ = ", ".join([" = ".join(tup) for tup in flag_columns_value])
+
+            cursor.execute('CREATE TEMPORARY TABLE {} ( LIKE {} ) ON COMMIT DROP'.format(tmp_table_name, table_name))
+            cursor.execute('ALTER TABLE {} {}'.format(tmp_table_name, drop_))
+            query = 'COPY {} ({}) FROM STDIN WITH CSV'.format(tmp_table_name, ', '.join(df_columns))
             cursor.copy_expert(sql=query, file=buffer)
-            query = self.read_sql('../postgresql/update_quote_price.sql').format(table_name, ', '.join(columns),
-                                                                                 ', '.join(columns), tmp_table_name,
-                                                                                 ', '.join(index_columns), set_)
+            query = self.read_sql('../postgresql/update_price.sql').format(table_name, ', '.join(df_columns),
+                                                                           ', '.join(df_columns), tmp_table_name,
+                                                                           ', '.join(index_columns),
+                                                                           set_ + ', ' + flag_)
             cursor.execute(query)
 
     def move_non_discontinued_to_product_list(self, product_list):

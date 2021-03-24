@@ -11,7 +11,7 @@ def main():
     local_db.open_connection()
 
     update_product_discontinued_status(e1_db, local_db)
-    update_product_list_price(e1_db, local_db)
+    update_product_list_price(e1_db, local_db, 'list_price')
     sts = local_db.get_st()
     for st_chunk in sts:
         update_product_quote_price(e1_db, local_db, st_chunk['st'].tolist(), 'quote_price', ['f', 'e', 'd', 'p'])
@@ -30,20 +30,20 @@ def update_product_quote_price(oracle, postgresql, st_list, table, quote_type):
         product_quote_price = oracle.get_product_quote_price(product_list, st_list, quote_type)
         oracle.close_connection()
         if not all(df is None for df in product_quote_price):
-            postgresql.update_quote_price(product_quote_price[1], table)
-            postgresql.update_quote_price(product_quote_price[0], table)
+            postgresql.update_price(product_quote_price[1], table)
+            postgresql.update_price(product_quote_price[0], table)
         postgresql.update_product_list(product_list, 'Updated Quote Price')
 
 
-def update_product_list_price(oracle, postgresql):
+def update_product_list_price(oracle, postgresql, table):
     products = postgresql.get_product('../postgresql/get_product.sql')
     for product_chunk in products:
         product_list = product_chunk['sku'].tolist()
         oracle.open_connection()
         product_list_price = oracle.get_product_list_price(product_list)
         oracle.close_connection()
-        if not product_list_price.empty:
-            postgresql.update_list_price(product_list_price)
+        if product_list_price is not None:
+            postgresql.update_price(product_list_price, table)
         postgresql.update_product_list(product_list, 'Updated List Price')
 
 

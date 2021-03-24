@@ -1,1 +1,0 @@
-SELECT 1 FROM list_price WHERE sku = %s AND list_price = %s AND effective_date = %s AND expiration_date = %s AND e1_updated_date = %s FETCH FIRST 1 ROWS ONLY
