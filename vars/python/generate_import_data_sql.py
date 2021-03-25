@@ -16,9 +16,9 @@ def main():
     if os.path.exists(sql):
         os.remove(sql)
 
-    for item in items:
+    for index, item in enumerate(items):
         with open(sql, 'a+') as file:
-            if item != items[-1]:
+            if index != len(items) - 1:
                 file.write(sql_template.format(item) + ';\n')
             else:
                 file.write(sql_template.format(item))
