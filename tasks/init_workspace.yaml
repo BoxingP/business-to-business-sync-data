@@ -1,0 +1,39 @@
+- name: remove exist workspace directory
+  file:
+    path: '{{ workspace_path }}'
+    state: absent
+    force: yes
+
+- name: create workspace directory
+  file:
+    path: '{{ workspace_path }}'
+    state: directory
+
+- name: get name of workspace directory
+  set_fact:
+    workspace_directory: "{{ workspace_path.split('/')[-1] }}"
+
+- name: get absolute path of workspace directory
+  include_role:
+    name: get_absolute_path_of_directory
+  vars:
+    directory: "{{ workspace_directory }}"
+    path: '{{ workspace_path }}'
+
+- name: set absolute path of directories
+  set_fact:
+    abs_downloads_path: "{{vars[ 'abs_' + workspace_directory + '_path' ]}}/downloads"
+    abs_oracle_path: "{{vars[ 'abs_' + workspace_directory + '_path' ]}}/oracle"
+    abs_postgresql_path: "{{vars[ 'abs_' + workspace_directory + '_path' ]}}/postgresql"
+    abs_python_path: "{{vars[ 'abs_' + workspace_directory + '_path' ]}}/python"
+
+- name: copy in codes files
+  synchronize:
+    src: "vars/"
+    dest: "{{vars[ 'abs_' + workspace_directory + '_path' ]}}"
+    delete: yes
+    recursive: yes
+    rsync_opts:
+      - "--exclude=.gitkeep"
+      - "--exclude=python/__pycache__"
+      - "--exclude=database_config.yaml.example"

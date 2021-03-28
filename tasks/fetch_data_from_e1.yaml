@@ -1,8 +1,7 @@
 - name: fetch data from e1
-  script: '{{ abs_python_path }}/fetch_data_from_e1.py'
+  command: '{{ virtualenv }}/bin/python3 {{ abs_python_path }}/fetch_data_from_e1.py'
   args:
     chdir: '{{ abs_python_path }}'
-    executable: '{{ virtualenv }}/bin/python3'
   register: fetch_data_from_e1_output
 
 - debug:

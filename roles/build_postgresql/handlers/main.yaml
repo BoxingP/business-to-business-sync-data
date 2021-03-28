@@ -2,3 +2,14 @@
   service:
     name: postgresql
     state: restarted
+  become: yes
+  when:
+    - ansible_distribution|lower == 'ubuntu'
+
+- name: restart postgresql
+  service:
+    name: postgresql-12
+    state: restarted
+  become: yes
+  when:
+    - ansible_distribution|lower == 'centos'

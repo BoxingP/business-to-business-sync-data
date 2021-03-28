@@ -12,6 +12,12 @@
     - name: init server environment
       include_role:
         name: 'update_{{ ansible_distribution|lower }}_environment'
+    - name: init workspace
+      block:
+        - include_tasks: tasks/init_workspace.yaml
+          vars:
+            workspace_path: '/tmp/b2b_sync_data'
+      tags: python
     - name: init python environment
       include_role:
         name: create_python_virtualenv
@@ -37,5 +43,5 @@
       environment:
         PATH: '{{ virtualenv }}/bin:{{ hostvars[inventory_hostname].ansible_env.PATH }}'
         LD_LIBRARY_PATH: '/opt/oracle/instantclient_21_1'
-        PYTHONPATH: '{{ playbook_dir }}/vars/python'
+        PYTHONPATH: '{{ abs_python_path }}'
       tags: python

@@ -1,0 +1,63 @@
+- name: update yum cache
+  yum:
+    update_cache: yes
+  become: yes
+  ignore_errors: yes
+
+- name: update all packages
+  yum:
+    name: '*'
+    state: latest
+  become: yes
+
+- name: install required packages
+  yum:
+    name:
+      - unzip
+      - python3
+      - python-virtualenv
+      - gcc
+      - python3-devel
+      - libaio
+      - epel-release
+      - centos-release-scl
+    state: present
+  become: yes
+
+- name: install postgresql 12 repository
+  yum:
+    name: https://download.postgresql.org/pub/repos/yum/12/redhat/rhel-7.9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+    state: present
+  become: yes
+
+- name: install postgresql 12
+  yum:
+    name:
+      - postgresql12-server
+      - postgresql12-contrib
+      - postgresql12-devel
+      - python-psycopg2
+    state: present
+  become: yes
+
+- name: initialize the cluster
+  command: /usr/pgsql-12/bin/postgresql-12-setup initdb
+  register: result
+  become: yes
+  failed_when:
+    - result.rc != 0
+    - '"Data directory is not empty" not in result.stdout'
+
+- name: modify the postgresql config
+  lineinfile:
+    path: /var/lib/pgsql/12/data/pg_hba.conf
+    regexp: '^host[ ]{1,}all[ ]{1,}all[ ]{1,}127\.0\.0\.1\/32[ ]{1,}ident$'
+    line: 'host    all    all    127.0.0.1/32    md5'
+    state: present
+  become: yes
+
+- name: reload postgresql config
+  service:
+    name: postgresql-12
+    state: reloaded
+  become: yes

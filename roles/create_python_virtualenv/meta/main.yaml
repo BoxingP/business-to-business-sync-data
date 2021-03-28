@@ -1,6 +1,0 @@
----
-dependencies:
-  - role: get_absolute_path_of_directory
-    vars:
-      directory: '{{ python_requirements_file_directory }}'
-      path: '{{ python_requirements_file_directory }}'

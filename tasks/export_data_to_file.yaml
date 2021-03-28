@@ -1,8 +1,7 @@
 - name: export data to file
-  script: '{{ abs_python_path }}/export_data_to_file.py'
+  command: '{{ virtualenv }}/bin/python3 {{ abs_python_path }}/export_data_to_file.py'
   args:
     chdir: '{{ abs_python_path }}'
-    executable: '{{ virtualenv }}/bin/python3'
   register: export_data_to_file_output
 
 - debug:

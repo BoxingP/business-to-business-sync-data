@@ -1,0 +1,2 @@
+login_password: '{{ vault_login_password }}'
+become_password: '{{ vault_become_password }}'
