@@ -135,6 +135,7 @@ class OracleDatabase(Database):
             result = result.explode('SKU')
         result["E1_UPDATED_DATE"] = ""
         if not result.empty:
+            result = result.drop_duplicates(keep=False, ignore_index=True)
             result['SKU'] = result['SKU'].str.strip()
             result['EFFECTIVE_DATE'] = result['EFFECTIVE_DATE'].apply(jde_julian_date_to_datetime)
             result['EXPIRATION_DATE'] = result['EXPIRATION_DATE'].apply(jde_julian_date_to_datetime, var='235959')
@@ -195,7 +196,6 @@ class PostgresqlDatabase(Database):
     def update_price(self, data, table):
         get_chunk = flow_from_dataframe(data, 50000)
         for chunk in get_chunk:
-            chunk.drop_duplicates(keep=False, inplace=True)
             chunk.to_sql(name=table, con=self.create_engine(), method=self.upsert_table, index=False,
                          if_exists='append')
 
