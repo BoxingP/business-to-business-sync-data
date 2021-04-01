@@ -9,6 +9,8 @@
   get_url:
     url: https://download.oracle.com/otn_software/linux/instantclient/211000/instantclient-basic-linux.x64-21.1.0.0.0.zip
     dest: '{{ abs_downloads_path }}/instant_client.zip'
+    checksum: sha1:888c8f93bd932460366f712eb1a8615bfe85f9d7
+    timeout: 120
 
 - name: create /opt/oracle directory
   file:
@@ -20,4 +22,5 @@
   unarchive:
     src: '{{ abs_downloads_path }}/instant_client.zip'
     dest: /opt/oracle
+    remote_src: yes
   become: yes
