@@ -54,6 +54,7 @@
     regexp: '^host[ ]{1,}all[ ]{1,}all[ ]{1,}127\.0\.0\.1\/32[ ]{1,}ident$'
     line: 'host    all    all    127.0.0.1/32    md5'
     state: present
+  register: postgresql_config
   become: yes
 
 - name: reload postgresql config
@@ -61,3 +62,4 @@
     name: postgresql-12
     state: reloaded
   become: yes
+  when: postgresql_config is changed
