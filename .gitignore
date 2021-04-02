@@ -2,7 +2,8 @@
 .vault_pass
 **/vault
 /vars/downloads/*
-!/vars/downloads/.gitkeep
+/vars/logs/*
+!**/.gitkeep
 **/database_config.yaml
 /vars/postgresql/*.csv
 /vars/postgresql/import_sku_data.sql

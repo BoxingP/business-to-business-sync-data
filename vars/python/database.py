@@ -10,6 +10,8 @@ import psycopg2.extras
 
 import yaml
 
+from logger import Logger
+
 
 def jde_julian_date_to_datetime(jd, var='000000'):
     jd = str(jd)
@@ -41,6 +43,12 @@ class Database(object):
     def __init__(self, config_file):
         self.config = self.load_config(config_file)
         self.connection = None
+        module = self.__class__.__module__
+        if module is None or module == str.__class__.__module__:
+            self.fullname = self.__class__.__name__
+        else:
+            self.fullname = module + '.' + self.__class__.__name__
+        self.logger = Logger(self.fullname)
 
     @staticmethod
     def load_config(config_file):
@@ -269,12 +277,12 @@ class PostgresqlDatabase(Database):
     def get_st(self):
         data = self.run_sql('../postgresql/get_st.sql')
         get_chunk = flow_from_dataframe(data)
-        return get_chunk
+        return data.shape[0], get_chunk
 
     def get_product(self, sql):
         data = self.run_sql(sql)
         get_chunk = flow_from_dataframe(data)
-        return get_chunk
+        return data.shape[0], get_chunk
 
     def get_discontinued_product_list(self):
         return self.run_sql('../postgresql/get_discontinued_product_list.sql')

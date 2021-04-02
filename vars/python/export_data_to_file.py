@@ -1,6 +1,7 @@
 import datetime
 
 from database import PostgresqlDatabase
+from logger import Logger
 
 
 def is_night():
@@ -9,6 +10,8 @@ def is_night():
 
 
 def main():
+    logger = Logger(__name__)
+    logger.info('Start to export data to file.')
     time_started = datetime.datetime.utcnow()
 
     local_db = PostgresqlDatabase('../postgresql/database_config.yaml')
@@ -22,7 +25,7 @@ def main():
 
     time_ended = datetime.datetime.utcnow()
     total_time = (time_ended - time_started).total_seconds()
-    print('Total time is %ss.' % round(total_time))
+    logger.info('The time of exporting data is %ss.' % round(total_time))
 
 
 if __name__ == '__main__':
