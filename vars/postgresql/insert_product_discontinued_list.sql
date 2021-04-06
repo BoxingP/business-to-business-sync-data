@@ -1,1 +1,1 @@
-INSERT INTO product_discontinued_list (sku, business_unit) VALUES {} ON CONFLICT DO NOTHING
+INSERT INTO product_discontinued (sku, business_unit) VALUES {} ON CONFLICT DO NOTHING

@@ -1,1 +1,1 @@
-SELECT sku FROM product_discontinued_list ORDER BY sku
+SELECT sku FROM product_discontinued ORDER BY sku

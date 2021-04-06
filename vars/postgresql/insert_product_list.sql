@@ -1,1 +1,0 @@
-INSERT INTO product_list (sku, business_unit, discontinued) VALUES {} ON CONFLICT DO NOTHING

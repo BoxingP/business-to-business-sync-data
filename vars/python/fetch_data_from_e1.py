@@ -23,7 +23,7 @@ def main():
     for st_chunk in sts:
         update_product_quote_price(e1_db, local_db, st_chunk['st'].tolist(), 'quote_price', ['f', 'e', 'd', 'p'])
     logger.info('Start to update products dummy quote price')
-    update_product_quote_price(e1_db, local_db, [90714], 'shared_quote_price', ['d', 'p'])
+    update_product_quote_price(e1_db, local_db, [90714], 'dummy_quote_price', ['d', 'p'])
     time_ended = datetime.datetime.utcnow()
     total_time = (time_ended - time_started).total_seconds()
     logger.info('The time of updating products quote price is %ss.' % round(total_time))
@@ -36,12 +36,12 @@ def update_product_quote_price(oracle, postgresql, st_list, table, quote_type):
     for product_chunk in products:
         product_list = product_chunk['sku'].tolist()
         oracle.open_connection()
-        sku_quote_price, pl_quote_price = oracle.get_product_quote_price(product_list, st_list, quote_type)
+        sku_quote_price, ppl_quote_price = oracle.get_product_quote_price(product_list, st_list, quote_type)
         oracle.close_connection()
-        if not all(df is None for df in (sku_quote_price, pl_quote_price)):
-            postgresql.update_price(pl_quote_price, table)
+        if not all(df is None for df in (sku_quote_price, ppl_quote_price)):
+            postgresql.update_price(ppl_quote_price, table)
             postgresql.update_price(sku_quote_price, table)
-        postgresql.update_product_list(product_list, 'Updated Quote Price')
+        postgresql.update_product(product_list, 'Updated Quote Price')
 
 
 def update_product_list_price(oracle, postgresql, table, logger):
@@ -55,7 +55,7 @@ def update_product_list_price(oracle, postgresql, table, logger):
         oracle.close_connection()
         if product_list_price is not None:
             postgresql.update_price(product_list_price, table)
-        postgresql.update_product_list(product_list, 'Updated List Price')
+        postgresql.update_product(product_list, 'Updated List Price')
     time_ended = datetime.datetime.utcnow()
     total_time = (time_ended - time_started).total_seconds()
     logger.info('The time of updating products list price is %ss.' % round(total_time))
@@ -73,7 +73,7 @@ def update_product_discontinued_status(oracle, postgresql, logger):
         oracle.close_connection()
         if not product_discontinued_status.empty:
             postgresql.update_discontinued_status(product_discontinued_status)
-        postgresql.update_product_list(product_list, 'Updated Discontinued')
+        postgresql.update_product(product_list, 'Updated Discontinued')
     total_number, products_discontinued = postgresql.get_product('../postgresql/get_product_discontinued.sql')
     logger.info('Check discontinued products status.')
     for product_chunk in products_discontinued:
@@ -83,7 +83,7 @@ def update_product_discontinued_status(oracle, postgresql, logger):
         oracle.close_connection()
         if not product_discontinued_status.empty:
             logger.info('Move non discontinued products back.')
-            postgresql.move_non_discontinued_to_product_list(product_discontinued_status)
+            postgresql.move_non_discontinued_to_product(product_discontinued_status)
     time_ended = datetime.datetime.utcnow()
     total_time = (time_ended - time_started).total_seconds()
     logger.info('The time of updating products discontinued status is %ss.' % round(total_time))

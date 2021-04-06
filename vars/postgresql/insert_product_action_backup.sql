@@ -1,0 +1,1 @@
+INSERT INTO product_action_backup (sku, action, updated_by, updated_date) VALUES {}

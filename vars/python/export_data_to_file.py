@@ -19,7 +19,7 @@ def main():
     local_db.export_data_to_csv('product', is_night())
     local_db.export_data_to_csv('product_action')
     local_db.export_data_to_csv('product_quote')
-    local_db.export_data_to_csv('product_shared_quote')
+    local_db.export_data_to_csv('product_dummy_quote')
     local_db.export_data_to_csv('research_group_st_mapping')
     local_db.close_connection()
 

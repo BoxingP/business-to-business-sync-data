@@ -1,1 +1,1 @@
-COPY (SELECT sku, action FROM product_action_list WHERE updated_date >= NOW() - INTERVAL '%s HOURS') TO STDOUT WITH CSV DELIMITER ',' HEADER
+COPY (SELECT sku, action FROM product_action WHERE updated_date >= NOW() - INTERVAL '%s HOURS') TO STDOUT WITH CSV DELIMITER ',' HEADER

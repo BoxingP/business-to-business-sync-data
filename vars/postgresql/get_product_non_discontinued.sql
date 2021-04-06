@@ -1,0 +1,1 @@
+SELECT sku, business_unit FROM product_discontinued WHERE sku IN ({0})

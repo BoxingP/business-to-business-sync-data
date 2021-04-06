@@ -42,15 +42,15 @@
     state: absent
     cascade: yes
   loop:
-    - product_list
+    - product
     - ship_to
   become: yes
   become_user: postgres
 
-- name: create table product list in db
+- name: create table product in db
   community.general.postgresql_table:
     db: '{{ db_name }}'
-    table: product_list
+    table: product
     columns:
       - sku varchar(25) not null primary key
       - business_unit varchar(25) not null
@@ -170,10 +170,10 @@
   become: yes
   become_user: postgres
 
-- name: create table shared quote price in db
+- name: create table dummy quote price in db
   community.general.postgresql_table:
     db: '{{ db_name }}'
-    table: shared_quote_price
+    table: dummy_quote_price
     columns:
       - quote_price_id bigserial primary key
       - quote_type char(1) not null
@@ -191,10 +191,10 @@
   become: yes
   become_user: postgres
 
-- name: create index in table shared quote price
+- name: create index in table dummy quote price
   community.general.postgresql_idx:
     db: '{{ db_name }}'
-    table: shared_quote_price
+    table: dummy_quote_price
     columns:
       - quote_type
       - quote_number
@@ -202,27 +202,27 @@
       - min_order_quantity
       - effective_date
       - expiration_date
-    idxname: shared_quote_price_idx
+    idxname: dummy_quote_price_idx
     idxtype: btree
     unique: yes
     state: present
   become: yes
   become_user: postgres
 
-- name: create table product discontinued list in db
+- name: create table product discontinued in db
   community.general.postgresql_table:
     db: '{{ db_name }}'
-    table: product_discontinued_list
+    table: product_discontinued
     columns:
       - sku varchar(25) primary key
       - business_unit varchar(25) not null
   become: yes
   become_user: postgres
 
-- name: create table product action list in db
+- name: create table product action in db
   community.general.postgresql_table:
     db: '{{ db_name }}'
-    table: product_action_list
+    table: product_action
     columns:
       - sku varchar(25) not null
       - action char(1) not null
@@ -231,10 +231,10 @@
   become: yes
   become_user: postgres
 
-- name: create table product action list backup in db
+- name: create table product action backup in db
   community.general.postgresql_table:
     db: '{{ db_name }}'
-    table: product_action_list_backup
+    table: product_action_backup
     columns:
       - sku varchar(25) not null
       - action char(1) not null

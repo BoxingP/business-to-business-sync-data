@@ -107,39 +107,39 @@ class OracleDatabase(Database):
     def get_product_quote_price(self, product_list, st_list, quote_type_list):
         sku_list = product_list
         product_line = self.get_product_line(product_list)
-        sku_pl_mapping = product_line.groupby('PL', as_index=False).agg({'SKU': lambda x: list(x)})
-        pl_list = sku_pl_mapping['PL'].to_list()
+        sku_ppl_mapping = product_line.groupby('PPL', as_index=False).agg({'SKU': lambda x: list(x)})
+        ppl_list = sku_ppl_mapping['PPL'].to_list()
 
         sku_result = []
-        pl_result = []
+        ppl_result = []
         for quote_type in quote_type_list:
-            sku_quote_price, pl_quote_price = self.get_quote_price(sku_list, pl_list, quote_type, st_list)
+            sku_quote_price, ppl_quote_price = self.get_quote_price(sku_list, ppl_list, quote_type, st_list)
             sku_result.append(sku_quote_price)
-            pl_result.append(pl_quote_price)
+            ppl_result.append(ppl_quote_price)
         sku_quote_price = self.format_quote_price_result(sku_result)
-        pl_quote_price = self.format_quote_price_result(pl_result, sku_pl_mapping)
+        ppl_quote_price = self.format_quote_price_result(ppl_result, sku_ppl_mapping)
 
-        return sku_quote_price, pl_quote_price
+        return sku_quote_price, ppl_quote_price
 
-    def get_quote_price(self, sku_list, pl_list, flag, st_list,
+    def get_quote_price(self, sku_list, ppl_list, flag, st_list,
                         date=datetime_to_jde_julian_date(datetime.datetime.now())):
         sku_quote_price = None
-        pl_quote_price = None
+        ppl_quote_price = None
         if sku_list:
             sku_quote_price = self.run_sql('../oracle/get_' + flag + '_quote_price.sql', str(sku_list)[1:-1],
                                            'Q5LITM', ','.join(map(str, st_list)), date)
-        if pl_list:
-            pl_quote_price = self.run_sql('../oracle/get_' + flag + '_quote_price.sql', str(pl_list)[1:-1],
-                                          'Q5ITTP', ','.join(map(str, st_list)), date)
-        return sku_quote_price, pl_quote_price
+        if ppl_list:
+            ppl_quote_price = self.run_sql('../oracle/get_' + flag + '_quote_price.sql', str(ppl_list)[1:-1],
+                                           'Q5ITTP', ','.join(map(str, st_list)), date)
+        return sku_quote_price, ppl_quote_price
 
     @staticmethod
-    def format_quote_price_result(df_list, sku_pl_mapping=None):
+    def format_quote_price_result(df_list, sku_ppl_mapping=None):
         if all(df is None for df in df_list):
             return None
         result = pd.concat(df_list, ignore_index=True)
-        if sku_pl_mapping is not None:
-            result['SKU'] = result['SKU'].str.strip().map(sku_pl_mapping.set_index('PL')['SKU'])
+        if sku_ppl_mapping is not None:
+            result['SKU'] = result['SKU'].str.strip().map(sku_ppl_mapping.set_index('PPL')['SKU'])
             result = result.explode('SKU')
         result["E1_UPDATED_DATE"] = ""
         if not result.empty:
@@ -157,7 +157,7 @@ class OracleDatabase(Database):
     def get_product_line(self, product_list):
         data = self.run_sql('../oracle/get_product_line.sql', str(product_list)[1:-1])
         data['SKU'] = data['SKU'].str.strip()
-        data['PL'] = data['PL'].str.strip()
+        data['PPL'] = data['PPL'].str.strip()
         return data
 
 
@@ -195,9 +195,9 @@ class PostgresqlDatabase(Database):
         cursor.execute(query)
         return cursor.fetchone() is not None
 
-    def update_product_list(self, data, operator='System', time='NOW()'):
+    def update_product(self, data, operator='System', time='NOW()'):
         cursor = self.connection.cursor()
-        update_sql = self.generate_sql('../postgresql/update_product_list.sql', str(data)[1:-1], operator, time)
+        update_sql = self.generate_sql('../postgresql/update_product.sql', str(data)[1:-1], operator, time)
         cursor.execute(update_sql)
         self.connection.commit()
 
@@ -257,17 +257,17 @@ class PostgresqlDatabase(Database):
                                                                            set_ + ', ' + flag_)
             cursor.execute(query)
 
-    def move_non_discontinued_to_product_list(self, product_list):
+    def move_non_discontinued_to_product(self, product_list):
         non_discontinued_df = product_list[~product_list['DISCONTINUED']]
         if non_discontinued_df.empty:
             return None
         non_discontinued_list = non_discontinued_df['SKU'].tolist()
-        data = self.run_sql('../postgresql/get_product_discontinued_list.sql', str(non_discontinued_list)[1:-1])
+        data = self.run_sql('../postgresql/get_product_non_discontinued.sql', str(non_discontinued_list)[1:-1])
         data["discontinued"] = False
         products = list(data.itertuples(index=False, name=None))
         records_list_template = ','.join(['%s'] * len(products))
-        insert_query = self.read_sql('../postgresql/insert_product_list.sql').format(records_list_template)
-        delete_sql = self.generate_sql('../postgresql/delete_product_discontinued_list.sql',
+        insert_query = self.read_sql('../postgresql/insert_product.sql').format(records_list_template)
+        delete_sql = self.generate_sql('../postgresql/delete_product_discontinued.sql',
                                        str(non_discontinued_list)[1:-1])
         cursor = self.connection.cursor()
         cursor.execute(insert_query, products)
@@ -284,8 +284,8 @@ class PostgresqlDatabase(Database):
         get_chunk = flow_from_dataframe(data)
         return data.shape[0], get_chunk
 
-    def get_discontinued_product_list(self):
-        return self.run_sql('../postgresql/get_discontinued_product_list.sql')
+    def get_discontinued_product(self):
+        return self.run_sql('../postgresql/get_discontinued_product.sql')
 
     def remove_discontinued_data_in_table(self, data, table):
         product_list = data['sku'].tolist()
@@ -293,14 +293,14 @@ class PostgresqlDatabase(Database):
         cursor.execute("DELETE FROM " + table + " WHERE sku IN (" + str(product_list)[1:-1] + ")")
         self.connection.commit()
 
-    def move_to_product_discontinued_list(self, data):
+    def move_to_product_discontinued(self, data):
         products = list(data.itertuples(index=False, name=None))
         records_list_template = ','.join(['%s'] * len(products))
         query = self.read_sql('../postgresql/insert_product_discontinued_list.sql').format(records_list_template)
         cursor = self.connection.cursor()
         cursor.execute(query, products)
         self.connection.commit()
-        self.remove_discontinued_data_in_table(data, 'product_list')
+        self.remove_discontinued_data_in_table(data, 'product')
 
     def remove_expired_data_in_table(self, table):
         cursor = self.connection.cursor()
@@ -309,16 +309,16 @@ class PostgresqlDatabase(Database):
                 '%Y-%m-%d %H:%M:%S') + "'")
         self.connection.commit()
 
-    def move_to_product_action_list_backup(self):
-        data = self.run_sql('../postgresql/get_expired_product_action_list.sql')
+    def move_to_product_action_backup(self):
+        data = self.run_sql('../postgresql/get_expired_product_action.sql')
         if not data.empty:
             expired_products_action = list(data.itertuples(index=False, name=None))
             records_list_template = ','.join(['%s'] * len(expired_products_action))
-            insert_query = self.read_sql('../postgresql/insert_product_action_list_backup.sql').format(
+            insert_query = self.read_sql('../postgresql/insert_product_action_backup.sql').format(
                 records_list_template)
             cursor = self.connection.cursor()
             cursor.execute(insert_query, expired_products_action)
-            cursor.execute("DELETE FROM product_action_list WHERE updated_date < NOW() - INTERVAL '3 MONTHS'")
+            cursor.execute("DELETE FROM product_action WHERE updated_date < NOW() - INTERVAL '3 MONTHS'")
             self.connection.commit()
 
     def export_data_to_csv(self, name, *args):

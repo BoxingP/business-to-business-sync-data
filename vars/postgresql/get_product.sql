@@ -1,1 +1,1 @@
-SELECT sku FROM product_list WHERE discontinued = '0' ORDER BY sku
+SELECT sku FROM product WHERE discontinued = '0' ORDER BY sku
