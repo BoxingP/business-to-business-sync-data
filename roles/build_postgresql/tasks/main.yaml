@@ -67,6 +67,7 @@
     columns:
       - st integer not null primary key
       - is_default boolean not null
+      - status varchar(2) not null
       - updated_by varchar(25)
       - updated_date timestamp
   become: yes

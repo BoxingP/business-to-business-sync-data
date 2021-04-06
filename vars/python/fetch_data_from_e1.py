@@ -11,13 +11,14 @@ def main():
     local_db.open_connection()
 
     update_product_discontinued_status(e1_db, local_db, logger)
+    update_ship_to_status(e1_db, local_db, logger)
 
     update_product_list_price(e1_db, local_db, 'list_price', logger)
 
     total_number, products = local_db.get_product('../postgresql/get_product.sql')
     logger.info('The total number of non discontinued products is %s.' % total_number)
-    total_number, sts = local_db.get_st()
-    logger.info('The total number of STs is %s.' % total_number)
+    total_number, sts = local_db.get_st('S')
+    logger.info('The total number of active STs is %s.' % total_number)
     logger.info('Start to update products quote price.')
     time_started = datetime.datetime.utcnow()
     for st_chunk in sts:
@@ -29,6 +30,23 @@ def main():
     logger.info('The time of updating products quote price is %ss.' % round(total_time))
 
     local_db.close_connection()
+
+
+def update_ship_to_status(oracle, postgresql, logger):
+    total_number, sts = postgresql.get_st()
+    logger.info('The total number of STs is %s.' % total_number)
+    logger.info('Start to update STs status.')
+    time_started = datetime.datetime.utcnow()
+    for st_chunk in sts:
+        st_list = st_chunk['st'].tolist()
+        oracle.open_connection()
+        st_status = oracle.get_st_status(st_list)
+        oracle.close_connection()
+        if st_status is not None:
+            postgresql.update_st_status(st_status)
+    time_ended = datetime.datetime.utcnow()
+    total_time = (time_ended - time_started).total_seconds()
+    logger.info('The time of updating STs status is %ss.' % round(total_time))
 
 
 def update_product_quote_price(oracle, postgresql, st_list, table, quote_type):

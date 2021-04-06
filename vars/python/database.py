@@ -160,6 +160,14 @@ class OracleDatabase(Database):
         data['PPL'] = data['PPL'].str.strip()
         return data
 
+    def get_st_status(self, st_list):
+        data = self.run_sql('../oracle/get_st_status.sql', ','.join(map(str, st_list)))
+        if not data.empty:
+            data['STATUS'] = data['STATUS'].str.strip()
+            return data
+        else:
+            return None
+
 
 class PostgresqlDatabase(Database):
     def __init__(self, config_file):
@@ -274,8 +282,10 @@ class PostgresqlDatabase(Database):
         cursor.execute(delete_sql)
         self.connection.commit()
 
-    def get_st(self):
-        data = self.run_sql('../postgresql/get_st.sql')
+    def get_st(self, status=None):
+        cursor = self.connection.cursor()
+        query = cursor.mogrify(self.read_sql('../postgresql/get_st.sql'), {'status': status}).decode('utf-8')
+        data = pd.read_sql(query, con=self.connection)
         get_chunk = flow_from_dataframe(data)
         return data.shape[0], get_chunk
 
@@ -286,6 +296,13 @@ class PostgresqlDatabase(Database):
 
     def get_discontinued_product(self):
         return self.run_sql('../postgresql/get_discontinued_product.sql')
+
+    def update_st_status(self, data):
+        cursor = self.connection.cursor()
+        statuses = data.itertuples(index=False, name=None)
+        query = self.read_sql('../postgresql/update_st_status.sql')
+        psycopg2.extras.execute_values(cursor, query, list(statuses))
+        self.connection.commit()
 
     def remove_discontinued_data_in_table(self, data, table):
         product_list = data['sku'].tolist()

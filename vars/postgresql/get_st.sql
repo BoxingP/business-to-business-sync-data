@@ -1,1 +1,1 @@
-SELECT st FROM ship_to ORDER BY st
+SELECT st FROM ship_to WHERE status = %(status)s OR %(status)s IS NULL ORDER BY st
