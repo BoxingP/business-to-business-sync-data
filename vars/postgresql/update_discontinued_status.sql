@@ -1,1 +1,1 @@
-UPDATE product SET discontinued = data.status FROM (VALUES %s) AS data (sku, status) WHERE product.sku = data.sku
+UPDATE product SET discontinued = data.status FROM (VALUES %s) AS data (sku, status) WHERE product.product_id = data.sku

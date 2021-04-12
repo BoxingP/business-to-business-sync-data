@@ -24,14 +24,16 @@
     - name: build postgresql
       include_role:
         name: 'build_postgresql'
-    - name: import data to postgresql, step 1
-      include_tasks: tasks/import_sku_data.yaml
-    - name: insert data to postgresql, step 2
-      include_tasks: tasks/import_st_data.yaml
     - name: build oracle environment
       include_tasks: tasks/build_oracle_environment.yaml
     - name: run python scripts
       block:
+        - name: import data to postgresql database
+          include_tasks:
+            file: tasks/import_data_to_postgresql.yaml
+            apply:
+              tags: import
+      always:
         - name: fetch data from e1
           include_tasks: tasks/fetch_data_from_e1.yaml
         - name: export data to file

@@ -1,0 +1,20 @@
+- name: generate sql script
+  command: '{{ virtualenv }}/bin/python3 {{ abs_python_path }}/generate_import_data_sql.py {{ item }}'
+  args:
+    chdir: '{{ abs_python_path }}'
+  loop:
+    - product sku
+    - product ppl
+    - st
+
+- name: import product data
+  community.general.postgresql_query:
+    db: '{{ db_name }}'
+    path_to_script: '{{ abs_postgresql_path }}/insert_{{ item }}_data.sql'
+    encoding: UTF-8
+  become: yes
+  become_user: postgres
+  loop:
+    - sku
+    - ppl
+    - st

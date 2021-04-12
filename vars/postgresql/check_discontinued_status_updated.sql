@@ -1,1 +1,1 @@
-SELECT 1 FROM product WHERE sku = %s AND discontinued = %s FETCH FIRST 1 ROWS ONLY
+SELECT 1 FROM product WHERE product_id = %s AND discontinued = %s FETCH FIRST 1 ROWS ONLY

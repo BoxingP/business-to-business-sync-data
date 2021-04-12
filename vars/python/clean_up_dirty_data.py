@@ -11,11 +11,15 @@ def main():
     local_db = PostgresqlDatabase('../postgresql/database_config.yaml')
     local_db.open_connection()
 
-    discontinued_products = local_db.get_discontinued_product()
-    if not discontinued_products.empty:
-        local_db.remove_discontinued_data_in_table(discontinued_products, 'list_price')
-        local_db.remove_discontinued_data_in_table(discontinued_products, 'quote_price')
-        local_db.move_to_product_discontinued(discontinued_products)
+    total_number, products_discontinued = local_db.get_product(table='product',
+                                                               fields=['product_id', 'product_type', 'business_unit'],
+                                                               product_type='S', is_discontinued=True)
+
+    for product_chunk in products_discontinued:
+        if not product_chunk.empty:
+            local_db.remove_discontinued_data_in_table(product_chunk, 'list_price')
+            local_db.remove_discontinued_data_in_table(product_chunk, 'quote_price')
+            local_db.move_to_product_discontinued(product_chunk)
     local_db.remove_expired_data_in_table('quote_price')
     local_db.remove_expired_data_in_table('list_price')
     local_db.move_to_product_action_backup()

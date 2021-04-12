@@ -52,7 +52,8 @@
     db: '{{ db_name }}'
     table: product
     columns:
-      - sku varchar(25) not null primary key
+      - product_id varchar(25) not null primary key
+      - product_type char(1) not null
       - business_unit varchar(25) not null
       - discontinued boolean not null
       - updated_by varchar(25) default 'System'
@@ -68,8 +69,8 @@
       - st integer not null primary key
       - is_default boolean not null
       - status varchar(2) not null
-      - updated_by varchar(25)
-      - updated_date timestamp
+      - updated_by varchar(25) default 'System'
+      - updated_date timestamp default current_timestamp
   become: yes
   become_user: postgres
 
@@ -140,6 +141,7 @@
       - quote_type char(1) not null
       - quote_number integer not null
       - sku varchar(25) not null
+      - ppl varchar(3)
       - st integer not null
       - min_order_quantity integer not null
       - discount numeric
@@ -162,8 +164,6 @@
       - sku
       - st
       - min_order_quantity
-      - effective_date
-      - expiration_date
     idxname: quote_price_idx
     idxtype: btree
     unique: yes
@@ -180,6 +180,7 @@
       - quote_type char(1) not null
       - quote_number integer not null
       - sku varchar(25) not null
+      - ppl varchar(3)
       - st integer not null
       - min_order_quantity integer not null
       - discount numeric
@@ -201,8 +202,6 @@
       - quote_number
       - sku
       - min_order_quantity
-      - effective_date
-      - expiration_date
     idxname: dummy_quote_price_idx
     idxtype: btree
     unique: yes
@@ -215,7 +214,8 @@
     db: '{{ db_name }}'
     table: product_discontinued
     columns:
-      - sku varchar(25) primary key
+      - product_id varchar(25) primary key
+      - product_type char(1) not null
       - business_unit varchar(25) not null
   become: yes
   become_user: postgres

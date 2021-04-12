@@ -1,1 +1,1 @@
-DELETE FROM product_discontinued WHERE sku IN ({0})
+DELETE FROM product_discontinued WHERE product_id IN ({0})

@@ -1,0 +1,1 @@
+INSERT INTO ship_to (st, is_default, status) VALUES ({id}, False, 'S') ON CONFLICT DO NOTHING

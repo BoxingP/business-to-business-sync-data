@@ -1,1 +1,0 @@
-SELECT sku, business_unit FROM product WHERE discontinued = '1'

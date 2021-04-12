@@ -1,0 +1,1 @@
+INSERT INTO product (product_id, product_type, business_unit, discontinued) VALUES ('{id}', '{type}', '{business}', {is_discontinued}) ON CONFLICT DO NOTHING

@@ -1,6 +1,7 @@
 import csv
 import datetime
 from io import StringIO
+from psycopg2 import sql
 from sqlalchemy import create_engine
 
 import cx_Oracle
@@ -37,6 +38,26 @@ def flow_from_dataframe(dataframe: pd.DataFrame, chunk_size: int = 1000):
     for start_row in range(0, dataframe.shape[0], chunk_size):
         end_row = min(start_row + chunk_size, dataframe.shape[0])
         yield dataframe.iloc[start_row:end_row, :]
+
+
+def apply_quote_policy(dataframe: pd.DataFrame):
+    dataframe = dataframe.drop_duplicates(keep=False, ignore_index=True)
+    latest_effective_date = dataframe.groupby(['QUOTE_TYPE', 'QUOTE_NUMBER', 'SKU', 'ST', 'MIN_ORDER_QUANTITY'])[
+        'EFFECTIVE_DATE'].transform(max)
+    dataframe = dataframe.loc[dataframe['EFFECTIVE_DATE'] == latest_effective_date]
+    latest_update_date = dataframe.groupby(['QUOTE_TYPE', 'QUOTE_NUMBER', 'SKU', 'ST', 'MIN_ORDER_QUANTITY'])[
+        'DATE_UPDATED'].transform(max)
+    dataframe = dataframe.loc[dataframe['DATE_UPDATED'] == latest_update_date]
+    latest_update_time = dataframe.groupby(['QUOTE_TYPE', 'QUOTE_NUMBER', 'SKU', 'ST', 'MIN_ORDER_QUANTITY'])[
+        'TIME_UPDATED'].transform(max)
+    dataframe = dataframe.loc[dataframe['TIME_UPDATED'] == latest_update_time]
+    min_discount = dataframe.groupby(['QUOTE_TYPE', 'QUOTE_NUMBER', 'SKU', 'ST', 'MIN_ORDER_QUANTITY'])[
+        'DISCOUNT'].transform(min)
+    dataframe = dataframe.loc[dataframe['DISCOUNT'] == min_discount]
+    min_fixed_price = dataframe.groupby(['QUOTE_TYPE', 'QUOTE_NUMBER', 'SKU', 'ST', 'MIN_ORDER_QUANTITY'])[
+        'FIXED_PRICE'].transform(min)
+    dataframe = dataframe.loc[dataframe['FIXED_PRICE'] == min_fixed_price]
+    return dataframe
 
 
 class Database(object):
@@ -104,11 +125,13 @@ class OracleDatabase(Database):
             return data
         return None
 
-    def get_product_quote_price(self, product_list, st_list, quote_type_list):
-        sku_list = product_list
-        product_line = self.get_product_line(product_list)
-        sku_ppl_mapping = product_line.groupby('PPL', as_index=False).agg({'SKU': lambda x: list(x)})
-        ppl_list = sku_ppl_mapping['PPL'].to_list()
+    def get_product_quote_price(self, product_list, st_list, quote_type_list, product_type):
+        sku_list = None
+        sku_ppl_mapping = self.get_sku_ppl_mapping(product_list, product_type)
+        skus_belong_to_ppl = sku_ppl_mapping.groupby('PPL', as_index=False).agg({'SKU': lambda x: list(x)})
+        ppl_list = skus_belong_to_ppl['PPL'].to_list()
+        if product_type == 'S':
+            sku_list = product_list
 
         sku_result = []
         ppl_result = []
@@ -117,8 +140,7 @@ class OracleDatabase(Database):
             sku_result.append(sku_quote_price)
             ppl_result.append(ppl_quote_price)
         sku_quote_price = self.format_quote_price_result(sku_result)
-        ppl_quote_price = self.format_quote_price_result(ppl_result, sku_ppl_mapping)
-
+        ppl_quote_price = self.format_quote_price_result(ppl_result, skus_belong_to_ppl)
         return sku_quote_price, ppl_quote_price
 
     def get_quote_price(self, sku_list, ppl_list, flag, st_list,
@@ -141,9 +163,11 @@ class OracleDatabase(Database):
         if sku_ppl_mapping is not None:
             result['SKU'] = result['SKU'].str.strip().map(sku_ppl_mapping.set_index('PPL')['SKU'])
             result = result.explode('SKU')
+        else:
+            result['PPL'] = None
         result["E1_UPDATED_DATE"] = ""
         if not result.empty:
-            result = result.drop_duplicates(keep=False, ignore_index=True)
+            result = apply_quote_policy(result)
             result['SKU'] = result['SKU'].str.strip()
             result['EFFECTIVE_DATE'] = result['EFFECTIVE_DATE'].apply(jde_julian_date_to_datetime)
             result['EXPIRATION_DATE'] = result['EXPIRATION_DATE'].apply(jde_julian_date_to_datetime, var='235959')
@@ -154,10 +178,15 @@ class OracleDatabase(Database):
         result.drop(['DATE_UPDATED', 'TIME_UPDATED'], inplace=True, axis=1)
         return result
 
-    def get_product_line(self, product_list):
-        data = self.run_sql('../oracle/get_product_line.sql', str(product_list)[1:-1])
-        data['SKU'] = data['SKU'].str.strip()
-        data['PPL'] = data['PPL'].str.strip()
+    def get_sku_ppl_mapping(self, product_list, product_type):
+        data = None
+        if product_type == 'S':
+            data = self.run_sql('../oracle/get_product_line.sql', str(product_list)[1:-1], 'IBLITM')
+        if product_type == 'P':
+            data = self.run_sql('../oracle/get_product_line.sql', str(product_list)[1:-1], 'IBSRP3')
+        if not data.empty:
+            data['SKU'] = data['SKU'].str.strip()
+            data['PPL'] = data['PPL'].str.strip()
         return data
 
     def get_st_status(self, st_list):
@@ -210,6 +239,8 @@ class PostgresqlDatabase(Database):
         self.connection.commit()
 
     def update_price(self, data, table):
+        if data is None:
+            return
         get_chunk = flow_from_dataframe(data, 50000)
         for chunk in get_chunk:
             chunk.to_sql(name=table, con=self.create_engine(), method=self.upsert_table, index=False,
@@ -270,16 +301,19 @@ class PostgresqlDatabase(Database):
         if non_discontinued_df.empty:
             return None
         non_discontinued_list = non_discontinued_df['SKU'].tolist()
-        data = self.run_sql('../postgresql/get_product_non_discontinued.sql', str(non_discontinued_list)[1:-1])
-        data["discontinued"] = False
-        products = list(data.itertuples(index=False, name=None))
-        records_list_template = ','.join(['%s'] * len(products))
-        insert_query = self.read_sql('../postgresql/insert_product.sql').format(records_list_template)
-        delete_sql = self.generate_sql('../postgresql/delete_product_discontinued.sql',
-                                       str(non_discontinued_list)[1:-1])
+        total_number, data = self.get_product(table='product_discontinued',
+                                              fields=['product_id', 'product_type', 'business_unit'],
+                                              products=non_discontinued_list)
         cursor = self.connection.cursor()
-        cursor.execute(insert_query, products)
-        cursor.execute(delete_sql)
+        for data_chunk in data:
+            data_chunk["discontinued"] = False
+            products = list(data_chunk.itertuples(index=False, name=None))
+            records_list_template = ','.join(['%s'] * len(products))
+            insert_query = self.read_sql('../postgresql/insert_product.sql').format(records_list_template)
+            delete_sql = self.generate_sql('../postgresql/delete_product_discontinued.sql',
+                                           str(data_chunk['product_id'].tolist())[1:-1])
+            cursor.execute(insert_query, products)
+            cursor.execute(delete_sql)
         self.connection.commit()
 
     def get_st(self, status=None):
@@ -289,13 +323,21 @@ class PostgresqlDatabase(Database):
         get_chunk = flow_from_dataframe(data)
         return data.shape[0], get_chunk
 
-    def get_product(self, sql):
-        data = self.run_sql(sql)
+    def get_product(self, table, fields=None, products=None, product_type=None, is_discontinued=None):
+        if fields is None:
+            fields = ['product_id']
+        if products is None:
+            products = [None]
+        cursor = self.connection.cursor()
+        query = sql.SQL(str(self.read_sql('../postgresql/get_product.sql'))).format(table=sql.Identifier(table),
+                                                                                    fields=sql.SQL(', p.').join(
+                                                                                        map(sql.Identifier, fields)))
+        query = cursor.mogrify(query,
+                               {'type': product_type, 'status': is_discontinued, 'products': tuple(products)}).decode(
+            'utf-8')
+        data = pd.read_sql(query, con=self.connection)
         get_chunk = flow_from_dataframe(data)
         return data.shape[0], get_chunk
-
-    def get_discontinued_product(self):
-        return self.run_sql('../postgresql/get_discontinued_product.sql')
 
     def update_st_status(self, data):
         cursor = self.connection.cursor()
@@ -305,9 +347,13 @@ class PostgresqlDatabase(Database):
         self.connection.commit()
 
     def remove_discontinued_data_in_table(self, data, table):
-        product_list = data['sku'].tolist()
+        product_list = data['product_id'].tolist()
         cursor = self.connection.cursor()
-        cursor.execute("DELETE FROM " + table + " WHERE sku IN (" + str(product_list)[1:-1] + ")")
+        if table == 'product':
+            column_name = 'product_id'
+        else:
+            column_name = 'sku'
+        cursor.execute("DELETE FROM " + table + " WHERE " + column_name + " IN (" + str(product_list)[1:-1] + ")")
         self.connection.commit()
 
     def move_to_product_discontinued(self, data):
