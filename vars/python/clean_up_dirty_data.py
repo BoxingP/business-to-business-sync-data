@@ -19,8 +19,10 @@ def main():
         if not product_chunk.empty:
             local_db.remove_discontinued_data_in_table(product_chunk, 'list_price')
             local_db.remove_discontinued_data_in_table(product_chunk, 'quote_price')
+            local_db.remove_discontinued_data_in_table(product_chunk, 'dummy_quote_price')
             local_db.move_to_product_discontinued(product_chunk)
     local_db.remove_expired_data_in_table('quote_price')
+    local_db.remove_expired_data_in_table('dummy_quote_price')
     local_db.remove_expired_data_in_table('list_price')
     local_db.move_to_product_action_backup()
 
