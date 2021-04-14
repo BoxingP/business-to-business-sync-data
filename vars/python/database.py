@@ -147,12 +147,24 @@ class OracleDatabase(Database):
                         date=datetime_to_jde_julian_date(datetime.datetime.now())):
         sku_quote_price = None
         ppl_quote_price = None
+        if flag == 'F':
+            st_column = 'ABAN81'
+        else:
+            st_column = 'ABAN8'
         if sku_list:
-            sku_quote_price = self.run_sql('../oracle/get_' + flag + '_quote_price.sql', str(sku_list)[1:-1],
-                                           'Q5LITM', ','.join(map(str, st_list)), date)
+            query = str(self.read_sql('../oracle/get_product_quote_price.sql')).format(sku='Q5LITM', st=st_column,
+                                                                                       quote_type=flag,
+                                                                                       current_date=date,
+                                                                                       skus=str(sku_list)[1:-1],
+                                                                                       sts=','.join(map(str, st_list)))
+            sku_quote_price = pd.read_sql(query, con=self.connection)
         if ppl_list:
-            ppl_quote_price = self.run_sql('../oracle/get_' + flag + '_quote_price.sql', str(ppl_list)[1:-1],
-                                           'Q5ITTP', ','.join(map(str, st_list)), date)
+            query = str(self.read_sql('../oracle/get_product_quote_price.sql')).format(sku='Q5ITTP', st=st_column,
+                                                                                       quote_type=flag,
+                                                                                       current_date=date,
+                                                                                       skus=str(ppl_list)[1:-1],
+                                                                                       sts=','.join(map(str, st_list)))
+            ppl_quote_price = pd.read_sql(query, con=self.connection)
         return sku_quote_price, ppl_quote_price
 
     @staticmethod
