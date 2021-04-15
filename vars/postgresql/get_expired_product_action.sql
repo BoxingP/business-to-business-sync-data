@@ -1,1 +1,1 @@
-SELECT sku, action, updated_by, updated_date FROM product_action WHERE updated_date < NOW() - INTERVAL '3 MONTHS'
+SELECT sku, action, updated_by, updated_date FROM product_action WHERE updated_date < TIMESTAMP %(time)s - INTERVAL '%(diff_months)s MONTHS'

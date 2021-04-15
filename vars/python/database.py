@@ -82,14 +82,6 @@ class Database(object):
         with open(sql, 'r', encoding='UTF-8') as file:
             return file.read()
 
-    @staticmethod
-    def generate_sql(sql, *args):
-        return open(sql, 'r').read().format(*args)
-
-    def run_sql(self, sql, *args):
-        sql = self.generate_sql(sql, *args)
-        return pd.read_sql(sql, con=self.connection)
-
     def close_connection(self):
         self.connection.close()
 
@@ -103,6 +95,10 @@ class OracleDatabase(Database):
         connection = cx_Oracle.connect(login['username'], login['password'],
                                        login['host'] + ':' + str(login['port']) + '/' + login['schema'])
         self.connection = connection
+
+    def run_sql(self, sql, *args):
+        sql = self.read_sql(sql).format(*args)
+        return pd.read_sql(sql, con=self.connection)
 
     def get_product_discontinued_status(self, product_list):
         data = self.run_sql('../oracle/get_non_discontinued_sku.sql', str(product_list)[1:-1])
@@ -227,7 +223,6 @@ class PostgresqlDatabase(Database):
         return create_engine(connect)
 
     def update_discontinued_status(self, data):
-        cursor = self.connection.cursor()
         statuses = data.itertuples(index=False, name=None)
         need_to_update = []
         for status in statuses:
@@ -235,20 +230,20 @@ class PostgresqlDatabase(Database):
                 need_to_update.append(status)
         if need_to_update:
             query = self.read_sql('../postgresql/update_discontinued_status.sql')
-            psycopg2.extras.execute_values(cursor, query, need_to_update)
+            with self.connection.cursor() as cursor:
+                psycopg2.extras.execute_values(cursor, query, need_to_update)
+                self.connection.commit()
 
     def discontinued_status_is_updated(self, status):
-        cursor = self.connection.cursor()
-        query = cursor.mogrify(self.read_sql('../postgresql/check_discontinued_status_updated.sql'), status).decode(
-            'utf-8')
-        cursor.execute(query)
-        return cursor.fetchone() is not None
+        with self.connection.cursor() as cursor:
+            cursor.execute(self.read_sql('../postgresql/check_discontinued_status_updated.sql'), status)
+            return cursor.fetchone() is not None
 
-    def update_product(self, data, operator='System', time='NOW()'):
-        cursor = self.connection.cursor()
-        update_sql = self.generate_sql('../postgresql/update_product.sql', str(data)[1:-1], operator, time)
-        cursor.execute(update_sql)
-        self.connection.commit()
+    def update_product(self, products, operator='System', time=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')):
+        with self.connection.cursor() as cursor:
+            cursor.execute(self.read_sql('../postgresql/update_product.sql'),
+                           {'products': tuple(products), 'operator': operator, 'time': time})
+            self.connection.commit()
 
     def update_price(self, data, table):
         if data is None:
@@ -276,19 +271,16 @@ class PostgresqlDatabase(Database):
         with postgresql_conn.cursor() as cursor:
             df_columns = list(map(str.lower, keys))
 
-            cursor.execute(cursor.mogrify(self.read_sql('../postgresql/get_table_index_columns.sql'),
-                                          (table_name, True)).decode('utf-8'))
+            cursor.execute(self.read_sql('../postgresql/get_table_index_columns.sql'), (table_name, True))
             primary_column = cursor.fetchone()[0]
 
-            cursor.execute(cursor.mogrify(self.read_sql('../postgresql/get_table_index_columns.sql'),
-                                          (table_name, False)).decode('utf-8'))
+            cursor.execute(self.read_sql('../postgresql/get_table_index_columns.sql'), (table_name, False))
             index_columns = cursor.fetchone()[0]
 
             data_columns = list(set(df_columns) - set(index_columns))
             set_ = ', '.join(['{} = EXCLUDED.{}'.format(k, k) for k in data_columns])
 
-            cursor.execute(cursor.mogrify(self.read_sql('../postgresql/get_table_columns.sql'),
-                                          (table_name,)).decode('utf-8'))
+            cursor.execute(self.read_sql('../postgresql/get_table_columns.sql'), (table_name,))
             full_columns = cursor.fetchone()[0]
             drop_ = ', '.join(['DROP COLUMN {}'.format(k) for k in list(set(full_columns) - set(df_columns))])
 
@@ -316,17 +308,18 @@ class PostgresqlDatabase(Database):
         total_number, data = self.get_product(table='product_discontinued',
                                               fields=['product_id', 'product_type', 'business_unit'],
                                               products=non_discontinued_list)
-        cursor = self.connection.cursor()
-        for data_chunk in data:
-            data_chunk["discontinued"] = False
-            products = list(data_chunk.itertuples(index=False, name=None))
-            records_list_template = ','.join(['%s'] * len(products))
-            insert_query = self.read_sql('../postgresql/insert_product.sql').format(records_list_template)
-            delete_sql = self.generate_sql('../postgresql/delete_product_discontinued.sql',
-                                           str(data_chunk['product_id'].tolist())[1:-1])
-            cursor.execute(insert_query, products)
-            cursor.execute(delete_sql)
-        self.connection.commit()
+        with self.connection.cursor() as cursor:
+            for data_chunk in data:
+                data_chunk["discontinued"] = False
+                products = list(data_chunk.itertuples(index=False, name=None))
+                records_list_template = ','.join(['%s'] * len(products))
+                insert_query = self.read_sql('../postgresql/insert_product.sql').format(records_list_template)
+                delete_sql = sql.SQL(str(self.read_sql('../postgresql/delete_data.sql'))).format(
+                    table=sql.Identifier('product_discontinued'),
+                    column=sql.Identifier('product_id'))
+                cursor.execute(insert_query, products)
+                cursor.execute(delete_sql, {'values': tuple(data_chunk['product_id'].tolist()), })
+                self.connection.commit()
 
     def get_st(self, status=None):
         cursor = self.connection.cursor()
@@ -352,49 +345,59 @@ class PostgresqlDatabase(Database):
         return data.shape[0], get_chunk
 
     def update_st_status(self, data):
-        cursor = self.connection.cursor()
         statuses = data.itertuples(index=False, name=None)
         query = self.read_sql('../postgresql/update_st_status.sql')
-        psycopg2.extras.execute_values(cursor, query, list(statuses))
-        self.connection.commit()
+        with self.connection.cursor() as cursor:
+            psycopg2.extras.execute_values(cursor, query, list(statuses))
+            self.connection.commit()
 
     def remove_discontinued_data_in_table(self, data, table):
         product_list = data['product_id'].tolist()
-        cursor = self.connection.cursor()
         if table == 'product':
             column_name = 'product_id'
         else:
             column_name = 'sku'
-        cursor.execute("DELETE FROM " + table + " WHERE " + column_name + " IN (" + str(product_list)[1:-1] + ")")
-        self.connection.commit()
+        delete_sql = sql.SQL(str(self.read_sql('../postgresql/delete_data.sql'))).format(
+            table=sql.Identifier(table),
+            column=sql.Identifier(column_name))
+        with self.connection.cursor() as cursor:
+            cursor.execute(delete_sql, {'values': tuple(product_list), })
+            self.connection.commit()
 
     def move_to_product_discontinued(self, data):
         products = list(data.itertuples(index=False, name=None))
         records_list_template = ','.join(['%s'] * len(products))
         query = self.read_sql('../postgresql/insert_product_discontinued_list.sql').format(records_list_template)
-        cursor = self.connection.cursor()
-        cursor.execute(query, products)
-        self.connection.commit()
+        with self.connection.cursor() as cursor:
+            cursor.execute(query, products)
+            self.connection.commit()
         self.remove_discontinued_data_in_table(data, 'product')
 
-    def remove_expired_data_in_table(self, table):
-        cursor = self.connection.cursor()
-        cursor.execute(
-            "DELETE FROM " + table + " WHERE expiration_date < TIMESTAMP '" + datetime.datetime.now().strftime(
-                '%Y-%m-%d %H:%M:%S') + "'")
-        self.connection.commit()
+    def remove_expired_data_in_table(self, table, time=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')):
+        query = sql.SQL(str(self.read_sql('../postgresql/delete_expired_data.sql'))).format(
+            table=sql.Identifier(table),
+            column=sql.Identifier('expiration_date'))
+        with self.connection.cursor() as cursor:
+            cursor.execute(query, {'time': time, 'diff_months': 0})
+            self.connection.commit()
 
-    def move_to_product_action_backup(self):
-        data = self.run_sql('../postgresql/get_expired_product_action.sql')
+    def move_to_product_action_backup(self, time=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), diff_months=3):
+        with self.connection.cursor() as cursor:
+            query = cursor.mogrify(self.read_sql('../postgresql/get_expired_product_action.sql'),
+                                   {'time': time, 'diff_months': diff_months}).decode('utf-8')
+        data = pd.read_sql(query, con=self.connection)
         if not data.empty:
             expired_products_action = list(data.itertuples(index=False, name=None))
             records_list_template = ','.join(['%s'] * len(expired_products_action))
             insert_query = self.read_sql('../postgresql/insert_product_action_backup.sql').format(
                 records_list_template)
-            cursor = self.connection.cursor()
-            cursor.execute(insert_query, expired_products_action)
-            cursor.execute("DELETE FROM product_action WHERE updated_date < NOW() - INTERVAL '3 MONTHS'")
-            self.connection.commit()
+            delete_sql = sql.SQL(str(self.read_sql('../postgresql/delete_expired_data.sql'))).format(
+                table=sql.Identifier('product_action'),
+                column=sql.Identifier('updated_date'))
+            with self.connection.cursor() as cursor:
+                cursor.execute(insert_query, expired_products_action)
+                cursor.execute(delete_sql, {'time': time, 'diff_months': diff_months})
+                self.connection.commit()
 
     def export_data_to_csv(self, name, *args):
         hour = int(self.config['other']['only_get_the_updated_data_within_hours'])
@@ -402,7 +405,8 @@ class PostgresqlDatabase(Database):
             parameters = (hour, *args)
         else:
             parameters = (hour,)
-        cursor = self.connection.cursor()
-        query = cursor.mogrify(self.read_sql('../postgresql/export_' + name + '_data.sql'), parameters).decode('utf-8')
-        with open('../postgresql/' + name + '.csv', 'w') as file:
-            cursor.copy_expert(query, file)
+        with self.connection.cursor() as cursor:
+            query = cursor.mogrify(self.read_sql('../postgresql/export_' + name + '_data.sql'), parameters).decode(
+                'utf-8')
+            with open('../postgresql/' + name + '.csv', 'w') as file:
+                cursor.copy_expert(query, file)

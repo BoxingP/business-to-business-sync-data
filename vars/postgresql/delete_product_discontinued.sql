@@ -1,1 +1,0 @@
-DELETE FROM product_discontinued WHERE product_id IN ({0})

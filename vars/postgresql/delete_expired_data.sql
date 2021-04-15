@@ -1,0 +1,1 @@
+DELETE FROM {table} WHERE {column} < TIMESTAMP %(time)s - INTERVAL '%(diff_months)s MONTHS'
