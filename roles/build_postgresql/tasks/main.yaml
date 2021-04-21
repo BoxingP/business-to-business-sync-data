@@ -140,6 +140,7 @@
       - quote_price_id bigserial primary key
       - quote_type char(1) not null
       - quote_number integer not null
+      - quote_status char(1) not null
       - sku varchar(25) not null
       - ppl varchar(3)
       - st integer not null
@@ -179,6 +180,7 @@
       - quote_price_id bigserial primary key
       - quote_type char(1) not null
       - quote_number integer not null
+      - quote_status char(1) not null
       - sku varchar(25) not null
       - ppl varchar(3)
       - st integer not null

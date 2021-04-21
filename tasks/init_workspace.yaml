@@ -1,9 +1,3 @@
-- name: remove exist workspace directory
-  file:
-    path: '{{ workspace_path }}'
-    state: absent
-    force: yes
-
 - name: create workspace directory
   file:
     path: '{{ workspace_path }}'
@@ -31,7 +25,7 @@
   synchronize:
     src: "vars/"
     dest: "{{vars[ 'abs_' + workspace_directory + '_path' ]}}"
-    delete: yes
+    delete: no
     recursive: yes
     rsync_opts:
       - "--exclude=.gitkeep"

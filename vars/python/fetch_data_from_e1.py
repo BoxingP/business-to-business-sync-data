@@ -1,10 +1,14 @@
 import datetime
+import os
 
-from database import OracleDatabase, PostgresqlDatabase
+import yaml
+
+from database import OracleDatabase, PostgresqlDatabase, datetime_to_jde_julian_date
 from logger import Logger
 
 
 def main():
+    start_point = datetime.datetime.now()
     e1_db = OracleDatabase('../oracle/database_config.yaml')
     local_db = PostgresqlDatabase('../postgresql/database_config.yaml')
     logger = Logger(__name__)
@@ -35,6 +39,19 @@ def main():
 
     local_db.close_connection()
 
+    if os.path.isfile('./scheduler_status.yaml'):
+        with open('./scheduler_status.yaml', 'r') as yaml_file:
+            data = yaml.safe_load(yaml_file.read())
+        data['last_run_date'] = datetime_to_jde_julian_date(start_point)
+        data['last_run_time'] = int(start_point.time().strftime('%H%M%S'))
+        data['is_first_run'] = False
+    else:
+        data = dict(last_run_date=datetime_to_jde_julian_date(start_point),
+                    last_run_time=int(start_point.time().strftime('%H%M%S')), is_first_run=False
+                    )
+    with open('./scheduler_status.yaml', 'w') as yaml_file:
+        yaml.dump(data, yaml_file, default_flow_style=False)
+
 
 def update_ship_to_status(oracle, postgresql, logger):
     total_number, sts = postgresql.get_st()
@@ -64,7 +81,6 @@ def update_product_quote_price(oracle, postgresql, st_list, table, product_type,
         if not all(df is None for df in (sku_quote_price, ppl_quote_price)):
             postgresql.update_price(ppl_quote_price, table)
             postgresql.update_price(sku_quote_price, table)
-        postgresql.update_product(product_list, 'Updated Quote Price')
 
 
 def update_product_list_price(oracle, postgresql, table, logger):
@@ -78,7 +94,6 @@ def update_product_list_price(oracle, postgresql, table, logger):
         oracle.close_connection()
         if product_list_price is not None:
             postgresql.update_price(product_list_price, table)
-        postgresql.update_product(product_list, 'Updated List Price')
     time_ended = datetime.datetime.utcnow()
     total_time = (time_ended - time_started).total_seconds()
     logger.info('The time of updating products list price is %ss.' % round(total_time))

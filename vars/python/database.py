@@ -1,5 +1,6 @@
 import csv
 import datetime
+import os
 from io import StringIO
 from psycopg2 import sql
 from sqlalchemy import create_engine
@@ -62,7 +63,7 @@ def apply_quote_policy(dataframe: pd.DataFrame):
 
 class Database(object):
     def __init__(self, config_file):
-        self.config = self.load_config(config_file)
+        self.config = self.load_yaml_file(config_file)
         self.connection = None
         module = self.__class__.__module__
         if module is None or module == str.__class__.__module__:
@@ -72,9 +73,9 @@ class Database(object):
         self.logger = Logger(self.fullname)
 
     @staticmethod
-    def load_config(config_file):
+    def load_yaml_file(config_file):
         with open(config_file, 'r', encoding='UTF-8') as file:
-            config = yaml.load(file, Loader=yaml.BaseLoader)
+            config = yaml.load(file, Loader=yaml.SafeLoader)
         return config
 
     @staticmethod
@@ -147,19 +148,30 @@ class OracleDatabase(Database):
             st_column = 'ABAN81'
         else:
             st_column = 'ABAN8'
+        updated_time_condition = None
+        sql_file = '../oracle/get_product_quote_price.sql'
+        if os.path.isfile('./scheduler_status.yaml'):
+            status = self.load_yaml_file('./scheduler_status.yaml')
+            if not status['is_first_run']:
+                sql_file = '../oracle/get_product_quote_price_daily_change.sql'
+                latest_date = status['last_run_date']
+                latest_clock = status['last_run_time']
+                if int(latest_date) != date:
+                    new_date = datetime_to_jde_julian_date(
+                        jde_julian_date_to_datetime(latest_date) + datetime.timedelta(days=1))
+                    updated_time_condition = '(Q5UPMJ = ' + str(latest_date) + ' AND Q5UPMT >= ' + str(latest_clock) + \
+                                             ') OR Q5UPMJ >= ' + str(new_date)
+                else:
+                    updated_time_condition = 'Q5UPMJ = ' + str(date) + ' AND Q5UPMT >= ' + str(latest_clock)
         if sku_list:
-            query = str(self.read_sql('../oracle/get_product_quote_price.sql')).format(sku='Q5LITM', st=st_column,
-                                                                                       quote_type=flag,
-                                                                                       current_date=date,
-                                                                                       skus=str(sku_list)[1:-1],
-                                                                                       sts=','.join(map(str, st_list)))
+            query = str(self.read_sql(sql_file)).format(sku='Q5LITM', st=st_column, quote_type=flag, current_date=date,
+                                                        skus=str(sku_list)[1:-1], sts=','.join(map(str, st_list)),
+                                                        updated_time_condition=updated_time_condition)
             sku_quote_price = pd.read_sql(query, con=self.connection)
         if ppl_list:
-            query = str(self.read_sql('../oracle/get_product_quote_price.sql')).format(sku='Q5ITTP', st=st_column,
-                                                                                       quote_type=flag,
-                                                                                       current_date=date,
-                                                                                       skus=str(ppl_list)[1:-1],
-                                                                                       sts=','.join(map(str, st_list)))
+            query = str(self.read_sql(sql_file)).format(sku='Q5ITTP', st=st_column, quote_type=flag, current_date=date,
+                                                        skus=str(ppl_list)[1:-1], sts=','.join(map(str, st_list)),
+                                                        updated_time_condition=updated_time_condition)
             ppl_quote_price = pd.read_sql(query, con=self.connection)
         return sku_quote_price, ppl_quote_price
 
