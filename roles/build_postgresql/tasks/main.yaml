@@ -17,7 +17,7 @@
     - ansible_distribution|lower == 'centos'
 
 - name: ensure database is created
-  community.general.postgresql_db:
+  community.postgresql.postgresql_db:
     name: '{{ db_name }}'
     encoding: UTF-8
     lc_collate: en_US.UTF-8
@@ -28,7 +28,7 @@
   become_user: postgres
 
 - name: add extension to database
-  community.general.postgresql_ext:
+  community.postgresql.postgresql_ext:
     name: btree_gist
     db: '{{ db_name }}'
     state: present
@@ -36,7 +36,7 @@
   become_user: postgres
 
 - name: drop tables
-  community.general.postgresql_table:
+  community.postgresql.postgresql_table:
     db: '{{ db_name }}'
     table: '{{ item }}'
     state: absent
@@ -48,7 +48,7 @@
   become_user: postgres
 
 - name: create table product in db
-  community.general.postgresql_table:
+  community.postgresql.postgresql_table:
     db: '{{ db_name }}'
     table: product
     columns:
@@ -62,7 +62,7 @@
   become_user: postgres
 
 - name: create table ship to in db
-  community.general.postgresql_table:
+  community.postgresql.postgresql_table:
     db: '{{ db_name }}'
     table: ship_to
     columns:
@@ -75,7 +75,7 @@
   become_user: postgres
 
 - name: create table casmart research group in db
-  community.general.postgresql_table:
+  community.postgresql.postgresql_table:
     db: '{{ db_name }}'
     table: casmart_research_group
     columns:
@@ -90,7 +90,7 @@
   become_user: postgres
 
 - name: create table ship to casmart research group in db
-  community.general.postgresql_table:
+  community.postgresql.postgresql_table:
     db: '{{ db_name }}'
     table: ship_to_casmart_research_group
     columns:
@@ -102,7 +102,7 @@
   become_user: postgres
 
 - name: create table list price in db
-  community.general.postgresql_table:
+  community.postgresql.postgresql_table:
     db: '{{ db_name }}'
     table: list_price
     columns:
@@ -118,7 +118,7 @@
   become_user: postgres
 
 - name: create index in table list price
-  community.general.postgresql_idx:
+  community.postgresql.postgresql_idx:
     db: '{{ db_name }}'
     table: list_price
     columns:
@@ -133,7 +133,7 @@
   become_user: postgres
 
 - name: create table quote price in db
-  community.general.postgresql_table:
+  community.postgresql.postgresql_table:
     db: '{{ db_name }}'
     table: quote_price
     columns:
@@ -156,7 +156,7 @@
   become_user: postgres
 
 - name: create index in table quote price
-  community.general.postgresql_idx:
+  community.postgresql.postgresql_idx:
     db: '{{ db_name }}'
     table: quote_price
     columns:
@@ -173,7 +173,7 @@
   become_user: postgres
 
 - name: create table dummy quote price in db
-  community.general.postgresql_table:
+  community.postgresql.postgresql_table:
     db: '{{ db_name }}'
     table: dummy_quote_price
     columns:
@@ -196,7 +196,7 @@
   become_user: postgres
 
 - name: create index in table dummy quote price
-  community.general.postgresql_idx:
+  community.postgresql.postgresql_idx:
     db: '{{ db_name }}'
     table: dummy_quote_price
     columns:
@@ -212,7 +212,7 @@
   become_user: postgres
 
 - name: create table product discontinued in db
-  community.general.postgresql_table:
+  community.postgresql.postgresql_table:
     db: '{{ db_name }}'
     table: product_discontinued
     columns:
@@ -223,7 +223,7 @@
   become_user: postgres
 
 - name: create table product action in db
-  community.general.postgresql_table:
+  community.postgresql.postgresql_table:
     db: '{{ db_name }}'
     table: product_action
     columns:
@@ -235,7 +235,7 @@
   become_user: postgres
 
 - name: create table product action backup in db
-  community.general.postgresql_table:
+  community.postgresql.postgresql_table:
     db: '{{ db_name }}'
     table: product_action_backup
     columns:
@@ -247,7 +247,7 @@
   become_user: postgres
 
 - name: create user
-  community.general.postgresql_user:
+  community.postgresql.postgresql_user:
     name: '{{ db_user }}'
     password: '{{ db_password }}'
     state: present
@@ -255,7 +255,7 @@
   become_user: postgres
 
 - name: ensure user has the access, step 1
-  community.general.postgresql_privs:
+  community.postgresql.postgresql_privs:
     db: '{{ db_name }}'
     role: '{{ db_user }}'
     objs: ALL_DEFAULT
@@ -266,7 +266,7 @@
   become_user: postgres
 
 - name: ensure user has the access, step 2
-  community.general.postgresql_privs:
+  community.postgresql.postgresql_privs:
     db: '{{ db_name }}'
     role: '{{ db_user }}'
     objs: ALL_IN_SCHEMA
@@ -276,7 +276,7 @@
   become_user: postgres
 
 - name: ensure user has the access, step 3
-  community.general.postgresql_privs:
+  community.postgresql.postgresql_privs:
     db: '{{ db_name }}'
     role: '{{ db_user }}'
     objs: ALL_IN_SCHEMA
@@ -286,7 +286,7 @@
   become_user: postgres
 
 - name: ensure user does not have unnecessary privileges
-  community.general.postgresql_user:
+  community.postgresql.postgresql_user:
     name: '{{ db_user }}'
     role_attr_flags: NOSUPERUSER,NOCREATEDB
     state: present
