@@ -17,6 +17,8 @@
       - libssl-dev
       - libssl-doc
       - libaio1
+      - python3-venv
+      - python3-dev
     state: present
   become: yes
 
