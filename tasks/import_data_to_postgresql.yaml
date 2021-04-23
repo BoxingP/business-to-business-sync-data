@@ -9,7 +9,8 @@
 
 - name: import product data
   community.postgresql.postgresql_query:
-    db: '{{ db_name }}'
+    db: '{{ database_name }}'
+    port: '{{ database_port }}'
     path_to_script: '{{ abs_postgresql_path }}/insert_{{ item }}_data.sql'
     encoding: UTF-8
   become: yes

@@ -3,10 +3,11 @@
   gather_facts: yes
 
 - name: build environment
-  hosts: localhost
+  hosts: wsl
   gather_facts: no
   vars:
-    db_name: demo
+    database_name: demo
+    database_port: 5431
     virtualenv: '{{ hostvars[inventory_hostname].ansible_env.HOME }}/.virtualenvs/business-to-business-sync-data-env'
   tasks:
     - name: init server environment

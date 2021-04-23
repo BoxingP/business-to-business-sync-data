@@ -16,9 +16,47 @@
   when:
     - ansible_distribution|lower == 'centos'
 
+- name: get the postgres listening port
+  shell:
+    cmd: for i in `tasklist.exe | grep -i '[p]ostgres ' | awk '{print $2}' | uniq `; do netstat.exe -ano | grep -i $i | grep -i '[L]ISTENING' | awk '{print $2}' | sed -e 's/.*://' | uniq; done
+  register: command_output
+  when:
+    - inventory_hostname|lower == 'wsl'
+
+- name: set the postgres listening port
+  set_fact:
+    postgres_default_port: '{{ command_output.stdout }}'
+  when: command_output is defined and command_output.stdout is defined and command_output.stdout != ''
+
+- name: get the postgres listening port
+  shell:
+    cmd: netstat -plunt | grep postmaster | awk '{print $4}' | sed -e 's/.*://' | uniq
+  become: yes
+  register: command_output
+  when:
+    - ansible_distribution|lower == 'centos'
+
+- name: set the postgres listening port
+  set_fact:
+    postgres_default_port: '{{ command_output.stdout }}'
+  when: command_output is defined and command_output.stdout is defined and command_output.stdout != ''
+
+- name: change postgresql port
+  community.postgresql.postgresql_set:
+    port: '{{ postgres_default_port }}'
+    name: port
+    value: '{{ db_port }}'
+  notify: 'restart {{ ansible_distribution|lower }} postgresql'
+  become: yes
+  become_user: postgres
+
+- name: restart postgresql
+  meta: flush_handlers
+
 - name: ensure database is created
   community.postgresql.postgresql_db:
     name: '{{ db_name }}'
+    port: '{{ db_port }}'
     encoding: UTF-8
     lc_collate: en_US.UTF-8
     lc_ctype: en_US.UTF-8
@@ -31,6 +69,7 @@
   community.postgresql.postgresql_ext:
     name: btree_gist
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     state: present
   become: yes
   become_user: postgres
@@ -38,6 +77,7 @@
 - name: drop tables
   community.postgresql.postgresql_table:
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     table: '{{ item }}'
     state: absent
     cascade: yes
@@ -50,6 +90,7 @@
 - name: create table product in db
   community.postgresql.postgresql_table:
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     table: product
     columns:
       - product_id varchar(25) not null primary key
@@ -64,6 +105,7 @@
 - name: create table ship to in db
   community.postgresql.postgresql_table:
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     table: ship_to
     columns:
       - st integer not null primary key
@@ -77,6 +119,7 @@
 - name: create table casmart research group in db
   community.postgresql.postgresql_table:
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     table: casmart_research_group
     columns:
       - research_group_id serial primary key
@@ -92,6 +135,7 @@
 - name: create table ship to casmart research group in db
   community.postgresql.postgresql_table:
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     table: ship_to_casmart_research_group
     columns:
       - st integer not null references ship_to
@@ -104,6 +148,7 @@
 - name: create table list price in db
   community.postgresql.postgresql_table:
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     table: list_price
     columns:
       - list_price_id serial primary key
@@ -120,6 +165,7 @@
 - name: create index in table list price
   community.postgresql.postgresql_idx:
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     table: list_price
     columns:
       - sku
@@ -135,6 +181,7 @@
 - name: create table quote price in db
   community.postgresql.postgresql_table:
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     table: quote_price
     columns:
       - quote_price_id bigserial primary key
@@ -158,6 +205,7 @@
 - name: create index in table quote price
   community.postgresql.postgresql_idx:
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     table: quote_price
     columns:
       - quote_type
@@ -175,6 +223,7 @@
 - name: create table dummy quote price in db
   community.postgresql.postgresql_table:
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     table: dummy_quote_price
     columns:
       - quote_price_id bigserial primary key
@@ -198,6 +247,7 @@
 - name: create index in table dummy quote price
   community.postgresql.postgresql_idx:
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     table: dummy_quote_price
     columns:
       - quote_type
@@ -214,6 +264,7 @@
 - name: create table product discontinued in db
   community.postgresql.postgresql_table:
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     table: product_discontinued
     columns:
       - product_id varchar(25) primary key
@@ -225,6 +276,7 @@
 - name: create table product action in db
   community.postgresql.postgresql_table:
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     table: product_action
     columns:
       - sku varchar(25) not null
@@ -237,6 +289,7 @@
 - name: create table product action backup in db
   community.postgresql.postgresql_table:
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     table: product_action_backup
     columns:
       - sku varchar(25) not null
@@ -248,6 +301,7 @@
 
 - name: create user
   community.postgresql.postgresql_user:
+    port: '{{ db_port }}'
     name: '{{ db_user }}'
     password: '{{ db_password }}'
     state: present
@@ -257,6 +311,7 @@
 - name: ensure user has the access, step 1
   community.postgresql.postgresql_privs:
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     role: '{{ db_user }}'
     objs: ALL_DEFAULT
     privs: ALL
@@ -268,6 +323,7 @@
 - name: ensure user has the access, step 2
   community.postgresql.postgresql_privs:
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     role: '{{ db_user }}'
     objs: ALL_IN_SCHEMA
     type: table
@@ -278,6 +334,7 @@
 - name: ensure user has the access, step 3
   community.postgresql.postgresql_privs:
     db: '{{ db_name }}'
+    port: '{{ db_port }}'
     role: '{{ db_user }}'
     objs: ALL_IN_SCHEMA
     type: sequence
@@ -287,8 +344,15 @@
 
 - name: ensure user does not have unnecessary privileges
   community.postgresql.postgresql_user:
+    port: '{{ db_port }}'
     name: '{{ db_user }}'
     role_attr_flags: NOSUPERUSER,NOCREATEDB
     state: present
   become: yes
   become_user: postgres
+
+- name: build postgresql config
+  template:
+    src: ../templates/database_config.j2
+    dest: '{{ abs_postgresql_path }}/database_config.yaml'
+    force: yes
