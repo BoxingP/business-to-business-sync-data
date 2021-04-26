@@ -39,8 +39,8 @@ def main():
 
     local_db.close_connection()
 
-    if os.path.isfile('./scheduler_status.yaml'):
-        with open('./scheduler_status.yaml', 'r') as yaml_file:
+    if os.path.isfile('./fetch_data_status.yaml'):
+        with open('./fetch_data_status.yaml', 'r') as yaml_file:
             data = yaml.safe_load(yaml_file.read())
         data['last_run_date'] = datetime_to_jde_julian_date(start_point)
         data['last_run_time'] = int(start_point.time().strftime('%H%M%S'))
@@ -49,7 +49,7 @@ def main():
         data = dict(last_run_date=datetime_to_jde_julian_date(start_point),
                     last_run_time=int(start_point.time().strftime('%H%M%S')), is_first_run=False
                     )
-    with open('./scheduler_status.yaml', 'w') as yaml_file:
+    with open('./fetch_data_status.yaml', 'w') as yaml_file:
         yaml.dump(data, yaml_file, default_flow_style=False)
 
 

@@ -1,8 +1,0 @@
-postgresql:
-  host:
-  port:
-  database:
-  username:
-  password:
-other:
-  only_get_the_updated_data_within_hours:

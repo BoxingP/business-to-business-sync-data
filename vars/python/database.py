@@ -150,8 +150,8 @@ class OracleDatabase(Database):
             st_column = 'ABAN8'
         updated_time_condition = None
         sql_file = '../oracle/get_product_quote_price.sql'
-        if os.path.isfile('./scheduler_status.yaml'):
-            status = self.load_yaml_file('./scheduler_status.yaml')
+        if os.path.isfile('./fetch_data_status.yaml'):
+            status = self.load_yaml_file('./fetch_data_status.yaml')
             if not status['is_first_run']:
                 sql_file = '../oracle/get_product_quote_price_daily_change.sql'
                 latest_date = status['last_run_date']
@@ -411,14 +411,16 @@ class PostgresqlDatabase(Database):
                 cursor.execute(delete_sql, {'time': time, 'diff_months': diff_months})
                 self.connection.commit()
 
-    def export_data_to_csv(self, name, *args):
-        hour = int(self.config['other']['only_get_the_updated_data_within_hours'])
-        if name == 'product':
-            parameters = (hour, *args)
+    def export_data_to_csv(self, *, table, last_export_time, is_night=True):
+        if table is None:
+            return
+        time = last_export_time.strftime('%Y-%m-%d %H:%M:%S')
+        if table == 'product':
+            parameters = (time, is_night)
         else:
-            parameters = (hour,)
+            parameters = (time,)
         with self.connection.cursor() as cursor:
-            query = cursor.mogrify(self.read_sql('../postgresql/export_' + name + '_data.sql'), parameters).decode(
+            query = cursor.mogrify(self.read_sql('../postgresql/export_' + table + '_data.sql'), parameters).decode(
                 'utf-8')
-            with open('../postgresql/' + name + '.csv', 'w') as file:
+            with open('../postgresql/' + table + '.csv', 'w') as file:
                 cursor.copy_expert(query, file)
