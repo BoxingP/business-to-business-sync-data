@@ -22,11 +22,28 @@
     state: present
   become: yes
 
-- name: install postgresql
+- name: import repository signing keys
+  apt_key:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    state: present
+  become: yes
+
+- name: get ubuntu distribution code
+  command: lsb_release -cs
+  register: ubuntu_release
+
+- name: add postgresql repository
+  apt_repository:
+    repo: deb http://apt.postgresql.org/pub/repos/apt {{ ubuntu_release.stdout }}-pgdg main
+    state: present
+    update_cache: yes
+  become: yes
+
+- name: install postgresql 12
   apt:
     name:
-      - postgresql
-      - postgresql-contrib
+      - postgresql-12
+      - postgresql-contrib-12
       - libpq-dev
       - python3-psycopg2
     state: present
