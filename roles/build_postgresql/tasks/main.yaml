@@ -117,7 +117,6 @@
     table: ship_to
     columns:
       - st integer not null primary key
-      - is_default boolean not null
       - status varchar(2) not null
       - updated_by varchar(25) default 'System'
       - updated_date timestamp default current_timestamp
