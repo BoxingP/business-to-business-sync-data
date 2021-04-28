@@ -5,5 +5,5 @@
 /vars/logs/*
 !**/.gitkeep
 **/database_config.yaml
-/vars/postgresql/*.csv
+/vars/postgresql/insert_*_data.sql
 /vars/python/__pycache__/*

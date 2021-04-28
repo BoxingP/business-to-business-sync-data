@@ -1,0 +1,26 @@
+- name: update yum cache
+  yum:
+    update_cache: yes
+  become: yes
+  ignore_errors: yes
+
+- name: update all packages
+  yum:
+    name: '*'
+    state: latest
+  become: yes
+
+- name: install required packages
+  yum:
+    name:
+      - unzip
+      - python3
+      - python-virtualenv
+      - gcc
+      - python3-devel
+      - libaio
+      - epel-release
+      - centos-release-scl
+      - python-psycopg2
+    state: present
+  become: yes

@@ -1,0 +1,25 @@
+- name: update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 86400
+  become: yes
+  ignore_errors: yes
+
+- name: update all packages
+  apt:
+    upgrade: dist
+  become: yes
+
+- name: install required packages
+  apt:
+    name:
+      - unzip
+      - libssl-dev
+      - libssl-doc
+      - libaio1
+      - python3-venv
+      - python3-dev
+      - libpq-dev
+      - python3-psycopg2
+    state: present
+  become: yes

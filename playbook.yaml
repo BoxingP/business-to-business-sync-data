@@ -2,45 +2,47 @@
   hosts: all
   gather_facts: yes
 
-- name: build environment
-  hosts: wsl
+- name: set up db server
+  hosts: dbservers
   gather_facts: no
   vars:
     database_name: demo
-    database_port: 5431
+    database_port: 5432
+    database_user: demo_user
+  tasks:
+    - name: build postgresql
+      include_role:
+        name: build_postgresql
+    - name: import data to postgresql database
+      import_tasks: tasks/import_data_to_postgresql.yaml
+
+- name: set up app server
+  hosts: appservers
+  gather_facts: no
+  vars:
     virtualenv: '{{ hostvars[inventory_hostname].ansible_env.HOME }}/.virtualenvs/business-to-business-sync-data-env'
   tasks:
     - name: init server environment
       include_role:
-        name: 'update_{{ ansible_distribution|lower }}_environment'
+        name: init_server_environment
     - name: init workspace
-      block:
-        - include_tasks: tasks/init_workspace.yaml
-          vars:
-            workspace_path: '/tmp/b2b_sync_data'
+      import_tasks: tasks/init_workspace.yaml
+      vars:
+        workspace_path: '/tmp/b2b_sync_data'
       tags: python
     - name: init python environment
       include_role:
         name: create_python_virtualenv
-    - name: build postgresql
-      include_role:
-        name: 'build_postgresql'
     - name: build oracle environment
-      include_tasks: tasks/build_oracle_environment.yaml
+      import_tasks: tasks/build_oracle_environment.yaml
     - name: run python scripts
       block:
-        - name: import data to postgresql database
-          include_tasks:
-            file: tasks/import_data_to_postgresql.yaml
-            apply:
-              tags: import
-      always:
         - name: fetch data from e1
-          include_tasks: tasks/fetch_data_from_e1.yaml
+          import_tasks: tasks/fetch_data_from_e1.yaml
         - name: export data to file
-          include_tasks: tasks/export_data_to_file.yaml
+          import_tasks: tasks/export_data_to_file.yaml
         - name: clean up dirty data
-          include_tasks: tasks/clean_up_dirty_data.yaml
+          import_tasks: tasks/clean_up_dirty_data.yaml
       vars:
         abs_python_path: '{{ playbook_dir }}/vars/python'
       environment:

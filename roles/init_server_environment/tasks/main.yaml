@@ -1,0 +1,7 @@
+- name: init server environment for rhel
+  import_tasks: redhat.yaml
+  when: ansible_facts['os_family']|lower == 'redhat'
+
+- name: init server environment for debian
+  import_tasks: debian.yaml
+  when: ansible_facts['os_family']|lower == 'debian'

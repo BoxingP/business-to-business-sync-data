@@ -1,2 +1,8 @@
 [ubuntu]
 wsl ansible_connection=local ansible_become_password='{{ become_password }}'
+
+[dbservers]
+wsl
+
+[appservers]
+wsl

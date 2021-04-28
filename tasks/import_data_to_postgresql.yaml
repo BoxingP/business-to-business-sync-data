@@ -1,7 +1,7 @@
 - name: generate sql script
-  command: '{{ virtualenv }}/bin/python3 {{ abs_python_path }}/generate_import_data_sql.py {{ item }}'
+  command: '/usr/bin/python3 ./generate_import_data_sql.py {{ item }}'
   args:
-    chdir: '{{ abs_python_path }}'
+    chdir: 'vars/python'
   loop:
     - product sku
     - product ppl
@@ -11,7 +11,8 @@
   community.postgresql.postgresql_query:
     db: '{{ database_name }}'
     port: '{{ database_port }}'
-    path_to_script: '{{ abs_postgresql_path }}/insert_{{ item }}_data.sql'
+    path_to_script: 'vars/postgresql/insert_{{ item }}_data.sql'
+    as_single_query: no
     encoding: UTF-8
   become: yes
   become_user: postgres
