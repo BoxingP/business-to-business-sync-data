@@ -318,7 +318,7 @@ class PostgresqlDatabase(Database):
             return None
         non_discontinued_list = non_discontinued_df['SKU'].tolist()
         total_number, data = self.get_product(table='product_discontinued',
-                                              fields=['product_id', 'product_type', 'business_unit'],
+                                              fields=['product', 'product_type', 'business_unit'],
                                               products=non_discontinued_list)
         with self.connection.cursor() as cursor:
             for data_chunk in data:
@@ -328,9 +328,9 @@ class PostgresqlDatabase(Database):
                 insert_query = self.read_sql('../postgresql/insert_product.sql').format(records_list_template)
                 delete_sql = sql.SQL(str(self.read_sql('../postgresql/delete_data.sql'))).format(
                     table=sql.Identifier('product_discontinued'),
-                    column=sql.Identifier('product_id'))
+                    column=sql.Identifier('product'))
                 cursor.execute(insert_query, products)
-                cursor.execute(delete_sql, {'values': tuple(data_chunk['product_id'].tolist()), })
+                cursor.execute(delete_sql, {'values': tuple(data_chunk['product'].tolist()), })
                 self.connection.commit()
 
     def get_st(self, status=None):
@@ -342,7 +342,7 @@ class PostgresqlDatabase(Database):
 
     def get_product(self, table, fields=None, products=None, product_type=None, is_discontinued=None):
         if fields is None:
-            fields = ['product_id']
+            fields = ['product']
         if products is None:
             products = [None]
         cursor = self.connection.cursor()
@@ -364,9 +364,9 @@ class PostgresqlDatabase(Database):
             self.connection.commit()
 
     def remove_discontinued_data_in_table(self, data, table):
-        product_list = data['product_id'].tolist()
+        product_list = data['product'].tolist()
         if table == 'product':
-            column_name = 'product_id'
+            column_name = 'product'
         else:
             column_name = 'sku'
         delete_sql = sql.SQL(str(self.read_sql('../postgresql/delete_data.sql'))).format(

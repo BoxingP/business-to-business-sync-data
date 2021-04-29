@@ -101,12 +101,13 @@
     port: '{{ db_port }}'
     table: product
     columns:
-      - product_id varchar(25) not null primary key
+      - product varchar(25) not null
       - product_type char(1) not null
       - business_unit varchar(25) not null
       - discontinued boolean not null
       - updated_by varchar(25) default 'System'
       - updated_date timestamp default current_timestamp
+      - PRIMARY KEY (product, product_type)
   become: yes
   become_user: postgres
 
@@ -274,9 +275,10 @@
     port: '{{ db_port }}'
     table: product_discontinued
     columns:
-      - product_id varchar(25) primary key
+      - product varchar(25) not null
       - product_type char(1) not null
       - business_unit varchar(25) not null
+      - PRIMARY KEY (product, product_type)
   become: yes
   become_user: postgres
 

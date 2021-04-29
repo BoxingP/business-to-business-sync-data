@@ -1,1 +1,1 @@
-INSERT INTO ship_to (st, status) VALUES ({id}, 'S') ON CONFLICT DO NOTHING
+INSERT INTO ship_to (st, status) VALUES ({name}, 'S') ON CONFLICT DO NOTHING

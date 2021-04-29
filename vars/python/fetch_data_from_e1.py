@@ -73,7 +73,7 @@ def update_ship_to_status(oracle, postgresql, logger):
 def update_product_quote_price(oracle, postgresql, st_list, table, product_type, quote_type):
     total_number, products = postgresql.get_product(table='product', product_type=product_type, is_discontinued=False)
     for product_chunk in products:
-        product_list = product_chunk['product_id'].tolist()
+        product_list = product_chunk['product'].tolist()
         oracle.open_connection()
         sku_quote_price, ppl_quote_price = oracle.get_product_quote_price(product_list, st_list, quote_type,
                                                                           product_type=product_type)
@@ -88,7 +88,7 @@ def update_product_list_price(oracle, postgresql, table, logger):
     time_started = datetime.datetime.utcnow()
     total_number, products = postgresql.get_product(table='product', product_type='S', is_discontinued=False)
     for product_chunk in products:
-        product_list = product_chunk['product_id'].tolist()
+        product_list = product_chunk['product'].tolist()
         oracle.open_connection()
         product_list_price = oracle.get_product_list_price(product_list)
         oracle.close_connection()
@@ -105,7 +105,7 @@ def update_product_status(oracle, postgresql, logger):
     logger.info('Start to update products status.')
     time_started = datetime.datetime.utcnow()
     for product_chunk in products:
-        product_list = product_chunk['product_id'].tolist()
+        product_list = product_chunk['product'].tolist()
         oracle.open_connection()
         product_discontinued_status = oracle.get_product_discontinued_status(product_list)
         oracle.close_connection()
@@ -114,7 +114,7 @@ def update_product_status(oracle, postgresql, logger):
     total_number, products_discontinued = postgresql.get_product(table='product_discontinued')
     logger.info('Check discontinued products status.')
     for product_chunk in products_discontinued:
-        product_list = product_chunk['product_id'].tolist()
+        product_list = product_chunk['product'].tolist()
         oracle.open_connection()
         product_discontinued_status = oracle.get_product_discontinued_status(product_list)
         oracle.close_connection()

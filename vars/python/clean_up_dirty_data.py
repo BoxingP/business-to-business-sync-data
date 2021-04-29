@@ -12,7 +12,7 @@ def main():
     local_db.open_connection()
 
     total_number, products_discontinued = local_db.get_product(table='product',
-                                                               fields=['product_id', 'product_type', 'business_unit'],
+                                                               fields=['product', 'product_type', 'business_unit'],
                                                                product_type='S', is_discontinued=True)
 
     for product_chunk in products_discontinued:

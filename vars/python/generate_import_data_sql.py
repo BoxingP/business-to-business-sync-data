@@ -23,9 +23,10 @@ def main():
     for index, value in enumerate(items):
         with open(sql, 'a+') as file:
             if index != len(items) - 1:
-                file.write(sql_template.format(id=value, type=item_type, business='BID', is_discontinued=False) + ';\n')
+                file.write(
+                    sql_template.format(name=value, type=item_type, business='BID', is_discontinued=False) + ';\n')
             else:
-                file.write(sql_template.format(id=value, type=item_type, business='BID', is_discontinued=False))
+                file.write(sql_template.format(name=value, type=item_type, business='BID', is_discontinued=False))
 
 
 if __name__ == '__main__':
